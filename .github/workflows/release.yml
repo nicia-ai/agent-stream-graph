@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required for npm trusted publishing: npm exchanges this OIDC token for a
+  # short-lived credential, so no NPM_TOKEN is stored anywhere. The package must
+  # have this repository and workflow file registered as a trusted publisher on
+  # npmjs.com first — see the README's release section.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native addon
+        run: pnpm rebuild better-sqlite3
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # The same gate CI runs, repeated here so a manual dispatch cannot publish
+      # an artifact no one imported.
+      - name: Pack and import under plain Node
+        run: |
+          set -euo pipefail
+          # The sandbox MUST live outside the checkout. Node resolves by walking
+          # parent directories, so a sandbox under the repo would find the repo's
+          # own node_modules — and the smoke would pass on a package missing a
+          # dependency it only appeared to have.
+          SANDBOX="$(mktemp -d)"
+          PACK_OUTPUT="$(pnpm pack --json --pack-destination "$SANDBOX")"
+          TARBALL="$(echo "$PACK_OUTPUT" | node -e 'const d=JSON.parse(require("node:fs").readFileSync(0,"utf8"));const f=Array.isArray(d)?d[0]?.filename:d?.filename;if(!f)process.exit(1);process.stdout.write(f);')"
+          # Pin the required peers to the exact versions this repo validates
+          # against. Named one at a time and fully quoted: an unquoted list would
+          # depend on the shell's word splitting.
+          TYPEGRAPH="$(node -p 'require("./package.json").devDependencies["@nicia-ai/typegraph"]')"
+          ZOD="$(node -p 'require("./package.json").devDependencies["zod"]')"
+          cp scripts/smoke-exports.mjs "$SANDBOX/"
+          cd "$SANDBOX"
+          npm init -y >/dev/null
+          # Required peers only. The optional ones are deliberately left out —
+          # the smoke asserts they are absent, which is what proves the adapters
+          # import them lazily rather than at module load.
+          npm install "$TARBALL" "@nicia-ai/typegraph@$TYPEGRAPH" "zod@$ZOD" >/dev/null
+          node smoke-exports.mjs
+
+      # Trusted publishing needs npm >= 11.5.1 for the OIDC exchange; Node 24
+      # ships a new enough npm, but pin the floor rather than inherit it.
+      - name: Publish to npm
+        run: |
+          set -euo pipefail
+          npm install -g npm@latest
+          npm --version
+          npm publish
+        env:
+          # Provenance attestation requires a public source repository.
+          NPM_CONFIG_PROVENANCE: ${{ github.event.repository.private != true }}

@@ -1,0 +1,20 @@
+# pnpm 11 no longer reads the "pnpm" field in package.json, and it replaced
+# `onlyBuiltDependencies` / `ignoredBuiltDependencies` with this single map.
+# See https://pnpm.io/settings.
+#
+# Every dependency carrying an install script must appear here or pnpm 11 fails
+# the install. These values preserve what pnpm 10 did under
+# `onlyBuiltDependencies: [esbuild]` — esbuild builds, nothing else does.
+allowBuilds:
+  # Links the platform-specific binary that tsx and vite invoke.
+  esbuild: true
+
+  # better-sqlite3 13 ships N-API prebuilds, so it needs no source build. CI
+  # still runs `pnpm rebuild better-sqlite3` explicitly to force a build when a
+  # prebuilt artifact does not match the runtime Node ABI.
+  better-sqlite3: false
+
+  # Transitive install scripts of the @electric-ax/agents-runtime
+  # devDependency, which only the live Deep Survey demo loads.
+  "@google/genai": false
+  protobufjs: false

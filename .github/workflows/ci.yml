@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+
+      # No `version:` — the action reads the pinned `packageManager` field
+      # from package.json. Pinning there rather than here keeps CI and local
+      # development on one pnpm, and stops a new pnpm major from turning CI red
+      # with no change to this repo.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # better-sqlite3 ships a native addon that must match the runtime Node
+      # ABI. Rebuild it explicitly so a prebuilt artifact for a different Node
+      # never blocks CI.
+      - name: Rebuild native addon
+        run: pnpm rebuild better-sqlite3
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  # Everything above reaches `src/` through vitest and tsx, which resolve
+  # specifiers Node does not. This job is the only one that exercises what a
+  # consumer actually installs, and it exists because that gap shipped a
+  # `dist/` Node could not import while the whole suite stayed green.
+  smoke:
+    name: Tarball smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack and import under plain Node
+        run: |
+          set -euo pipefail
+          # The sandbox MUST live outside the checkout. Node resolves by walking
+          # parent directories, so a sandbox under the repo would find the repo's
+          # own node_modules — and the smoke would pass on a package missing a
+          # dependency it only appeared to have.
+          SANDBOX="$(mktemp -d)"
+          PACK_OUTPUT="$(pnpm pack --json --pack-destination "$SANDBOX")"
+          TARBALL="$(echo "$PACK_OUTPUT" | node -e 'const d=JSON.parse(require("node:fs").readFileSync(0,"utf8"));const f=Array.isArray(d)?d[0]?.filename:d?.filename;if(!f)process.exit(1);process.stdout.write(f);')"
+          # Pin the required peers to the exact versions this repo validates
+          # against. Named one at a time and fully quoted: an unquoted list would
+          # depend on the shell's word splitting.
+          TYPEGRAPH="$(node -p 'require("./package.json").devDependencies["@nicia-ai/typegraph"]')"
+          ZOD="$(node -p 'require("./package.json").devDependencies["zod"]')"
+          cp scripts/smoke-exports.mjs "$SANDBOX/"
+          cd "$SANDBOX"
+          npm init -y >/dev/null
+          # Required peers only. The optional ones are deliberately left out —
+          # the smoke asserts they are absent, which is what proves the adapters
+          # import them lazily rather than at module load.
+          npm install "$TARBALL" "@nicia-ai/typegraph@$TYPEGRAPH" "zod@$ZOD" >/dev/null
+          node smoke-exports.mjs

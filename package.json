@@ -1,0 +1,90 @@
+{
+  "name": "@nicia-ai/agent-stream-graph",
+  "version": "0.1.0",
+  "description": "Durably materialize agent event streams (Electric shapes) into entity-resolved, bitemporal TypeGraph knowledge graphs — resumable, idempotent, and replayable by offset.",
+  "keywords": [
+    "typegraph",
+    "electric-sql",
+    "durable-streams",
+    "knowledge-graph",
+    "bitemporal",
+    "entity-resolution",
+    "agents",
+    "event-sourcing",
+    "changefeed",
+    "idempotent"
+  ],
+  "homepage": "https://github.com/nicia-ai/agent-stream-graph#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicia-ai/agent-stream-graph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nicia-ai/agent-stream-graph/issues"
+  },
+  "author": "Nicia AI, Inc.",
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.23.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run clean && pnpm run build",
+    "demo": "tsx examples/deep-survey-convergence.ts",
+    "demo:deep-survey-live": "tsx examples/deep-survey-live.ts",
+    "demo:mechanics": "tsx examples/agents.ts",
+    "demo:exactly-once": "tsx examples/exactly-once.ts",
+    "demo:fork-merge": "tsx examples/fork-merge.ts",
+    "demo:provenance": "tsx examples/provenance-retraction.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@durable-streams/client": "^0.2.6",
+    "@electric-ax/agents-runtime": "^0.6.3",
+    "@electric-sql/client": "^1.5.26",
+    "@nicia-ai/typegraph": "0.51.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.2.0",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.2",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@durable-streams/client": ">=0.2.6 <0.3.0",
+    "@electric-sql/client": ">=1.5.0 <2.0.0",
+    "@nicia-ai/typegraph": ">=0.51.1 <0.52.0",
+    "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@durable-streams/client": {
+      "optional": true
+    },
+    "@electric-sql/client": {
+      "optional": true
+    }
+  }
+}
