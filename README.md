@@ -38,7 +38,7 @@ pnpm add drizzle-orm better-sqlite3
 > makes `consume({ store })` fail to typecheck with the notoriously unhelpful
 > `Type 'Store<G>' is not assignable to type 'Store<G>'`. Declaring them as peers
 > is what guarantees one copy. The supported range is TypeGraph
-> `>=0.51.1 <0.52.0` and Zod `^4` — the same range TypeGraph itself declares.
+> `>=0.52.0 <0.53.0` and Zod `^4` — the same range TypeGraph itself declares.
 >
 > **The transport clients are OPTIONAL peers**: install `@electric-sql/client`
 > or `@durable-streams/client` only for the transport you actually use. Both are
@@ -73,7 +73,7 @@ pnpm add drizzle-orm better-sqlite3
 > the adopted native transaction handle precisely typed. Drizzle-backed
 > constructors come from `@nicia-ai/typegraph/adapters/drizzle/sqlite/local`.
 >
-> This package is developed against TypeGraph 0.51.1 and better-sqlite3 13,
+> This package is developed against TypeGraph 0.52.0 and better-sqlite3 13,
 > which TypeGraph's optional peer range covers. better-sqlite3 13 ships N-API
 > prebuilds, so it needs no source build — `pnpm-workspace.yaml` declares it
 > under `allowBuilds` as deliberately not built. pnpm itself is pinned by the

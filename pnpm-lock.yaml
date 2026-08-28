@@ -18,8 +18,8 @@ importers:
         specifier: ^1.5.26
         version: 1.5.26
       '@nicia-ai/typegraph':
-        specifier: 0.51.1
-        version: 0.51.1(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3))(zod@4.4.3)
+        specifier: 0.52.0
+        version: 0.52.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3))(zod@4.4.3)
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
@@ -479,8 +479,8 @@ packages:
     resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
     engines: {node: '>=14.0.0'}
 
-  '@nicia-ai/typegraph@0.51.1':
-    resolution: {integrity: sha512-CJKBGaFHVweEgEFS4oUyk773XHFBWZhNGcd3HSPGD6Zu3wrd/roiPWmaqpGOlyHCOaPQYu+6T1bAoZZuDV0a9g==}
+  '@nicia-ai/typegraph@0.52.0':
+    resolution: {integrity: sha512-K0UP1MPilMihU2RrK9MpkuUiex70O+dBt3rFI50IgU82Dll8o5yvmJXFdc0gwtMoj+5NbLJGnu+dQyJS0m++zQ==}
     engines: {node: '>=22'}
     peerDependencies:
       '@electric-sql/pglite': '>=0.5.0 <0.6.0'
@@ -2540,7 +2540,7 @@ snapshots:
 
   '@mozilla/readability@0.6.0': {}
 
-  '@nicia-ai/typegraph@0.51.1(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3))(zod@4.4.3)':
+  '@nicia-ai/typegraph@0.52.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3))(zod@4.4.3)':
     dependencies:
       nanoid: 5.1.16
       zod: 4.4.3
