@@ -44,6 +44,25 @@ function decodeOffset(offset: string | undefined): number {
   return Number.parseInt(offset, 10);
 }
 
+/**
+ * Compile a subscription pattern, per the protocol's glob: `*` matches exactly
+ * one path segment, `**` matches zero or more.
+ *
+ * Written out rather than pulled from a dependency because the whole point of
+ * this stand-in is that it implements the protocol slice this package speaks
+ * with nothing behind it to disagree with.
+ */
+function globToRegExp(pattern: string): RegExp {
+  // Split on the glob tokens, keeping them (capturing group), then translate
+  // each piece. `**` is listed before `*` so the alternation prefers the
+  // longer token wherever both could start a match.
+  const source = pattern
+    .split(/(\*\*|\*)/)
+    .map((piece) => (piece === "**" ? ".*" : piece === "*" ? "[^/]*" : piece.replace(/[.+?^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${source}$`);
+}
+
 type StreamState = {
   messages: unknown[];
   /** End index of each append; one GET never crosses one of these. */
@@ -54,7 +73,10 @@ type StreamState = {
 };
 
 type SubscriptionState = {
+  /** Explicitly linked paths. */
   streams: string[];
+  /** Glob over stream paths, matched live so streams created later still link. */
+  pattern?: string;
   acked: Map<string, number>;
   leaseTtlMs: number;
   generation: number;
@@ -82,6 +104,26 @@ export async function startDurableStreamsServer(): Promise<DurableStreamsServer>
   const streams = new Map<string, StreamState>();
   const subscriptions = new Map<string, SubscriptionState>();
   let wakeCounter = 0;
+
+  /**
+   * The paths a subscription currently covers: explicit links first, then any
+   * stream matching its pattern.
+   *
+   * Evaluated on every claim rather than frozen at creation, because that is
+   * the whole point of a glob subscription — a stream created after the
+   * subscription still has to wake it.
+   */
+  const linkedStreams = (state: SubscriptionState): readonly { path: string; linkType: string }[] => {
+    const linked = new Map<string, string>();
+    for (const path of state.streams) linked.set(path, "explicit");
+    if (state.pattern !== undefined) {
+      const matcher = globToRegExp(state.pattern);
+      for (const path of streams.keys()) {
+        if (matcher.test(path) && !linked.has(path)) linked.set(path, "pattern");
+      }
+    }
+    return [...linked].map(([path, linkType]) => ({ path, linkType }));
+  };
 
   const stateOf = (path: string): StreamState => {
     const state = streams.get(path);
@@ -205,8 +247,10 @@ export async function startDurableStreamsServer(): Promise<DurableStreamsServer>
         response.writeHead(STATUS_OK).end();
         return;
       }
+      const pattern = typeof body["pattern"] === "string" ? body["pattern"] : undefined;
       subscriptions.set(id, {
         streams: linked,
+        ...(pattern === undefined ? {} : { pattern }),
         acked: new Map(),
         leaseTtlMs: typeof body["lease_ttl_ms"] === "number" ? body["lease_ttl_ms"] : DEFAULT_LEASE_TTL_MS,
         generation: 0,
@@ -268,12 +312,12 @@ export async function startDurableStreamsServer(): Promise<DurableStreamsServer>
         generation: state.generation,
         token: state.holder.token,
         lease_ttl_ms: state.leaseTtlMs,
-        streams: state.streams.map((path) => {
+        streams: linkedStreams(state).map(({ path, linkType }) => {
           const acked = state.acked.get(path) ?? 0;
           const tail = streams.get(path)?.messages.length ?? 0;
           return {
             path,
-            link_type: "explicit",
+            link_type: linkType,
             acked_offset: encodeOffset(acked),
             tail_offset: encodeOffset(tail),
             has_pending: acked < tail,
@@ -295,8 +339,8 @@ export async function startDurableStreamsServer(): Promise<DurableStreamsServer>
       state.acked.set(String(ack["stream"]), decodeOffset(String(ack["offset"])));
     }
     if (body["done"] === true) delete state.holder;
-    const nextWake = state.streams.some(
-      (path) => (state.acked.get(path) ?? 0) < (streams.get(path)?.messages.length ?? 0),
+    const nextWake = linkedStreams(state).some(
+      ({ path }) => (state.acked.get(path) ?? 0) < (streams.get(path)?.messages.length ?? 0),
     );
     response
       .writeHead(STATUS_OK, { "Content-Type": CONTENT_TYPE_JSON })
