@@ -1,0 +1,24 @@
+{
+  "name": "@nicia-ai/asg-decoders",
+  "private": true,
+  "type": "module",
+  "description": "Pure decoders mapping third-party agent frameworks onto the four-op graph vocabulary.",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm test && pnpm demo"
+  },
+  "dependencies": {
+    "@nicia-ai/agent-stream-graph": "workspace:*",
+    "@nicia-ai/typegraph": "0.54.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "ai": "^7.0.83",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

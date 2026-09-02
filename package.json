@@ -50,19 +50,27 @@
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm run clean && pnpm run build",
     "demo": "tsx examples/deep-survey-convergence.ts",
+    "demo:emit": "tsx examples/emit.ts",
+    "demo:time-travel": "tsx examples/time-travel.ts",
+    "demo:valid-time": "tsx examples/valid-time.ts",
+    "demo:contradiction": "tsx examples/contradiction.ts",
+    "demo:crash-resume": "tsx examples/crash-resume.ts",
+    "demo:swarm": "tsx examples/swarm-materializer.ts",
+    "demo:all": "node scripts/run-examples.mjs",
     "demo:deep-survey-live": "tsx examples/deep-survey-live.ts",
     "demo:mechanics": "tsx examples/agents.ts",
     "demo:exactly-once": "tsx examples/exactly-once.ts",
     "demo:fork-merge": "tsx examples/fork-merge.ts",
     "demo:provenance": "tsx examples/provenance-retraction.ts",
     "test": "vitest run",
+    "test:all": "pnpm build && pnpm -r --if-present --include-workspace-root test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@durable-streams/client": "^0.2.6",
     "@electric-ax/agents-runtime": "^0.6.3",
     "@electric-sql/client": "^1.5.26",
-    "@nicia-ai/typegraph": "0.52.0",
+    "@nicia-ai/typegraph": "0.54.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.2.0",
     "better-sqlite3": "13.0.3",
@@ -76,7 +84,7 @@
   "peerDependencies": {
     "@durable-streams/client": ">=0.2.6 <0.3.0",
     "@electric-sql/client": ">=1.5.0 <2.0.0",
-    "@nicia-ai/typegraph": ">=0.52.0 <0.53.0",
+    "@nicia-ai/typegraph": ">=0.54.0 <0.55.0",
     "zod": "^4.0.0"
   },
   "peerDependenciesMeta": {

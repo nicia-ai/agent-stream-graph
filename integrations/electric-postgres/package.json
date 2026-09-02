@@ -1,0 +1,27 @@
+{
+  "name": "@nicia-ai/asg-electric-postgres",
+  "private": true,
+  "type": "module",
+  "description": "The real thing: Electric over Postgres logical replication, materialized live into a belief graph.",
+  "scripts": {
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down -v",
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm demo"
+  },
+  "dependencies": {
+    "@electric-sql/client": "^1.5.26",
+    "@nicia-ai/agent-stream-graph": "workspace:*",
+    "@nicia-ai/typegraph": "0.54.0",
+    "drizzle-orm": "0.45.2",
+    "pg": "^8.23.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  }
+}

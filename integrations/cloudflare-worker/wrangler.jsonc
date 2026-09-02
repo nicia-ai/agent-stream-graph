@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "asg-cloudflare-worker",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-28",
+
+  // Binds the Worker to the Durable Object class below under the name
+  // `MATERIALIZER` — `src/worker.ts` reaches it as `env.MATERIALIZER`.
+  "durable_objects": {
+    "bindings": [{ "name": "MATERIALIZER", "class_name": "AgentMaterializer" }]
+  },
+
+  // The current declarative form (replacing the `migrations` array — the two
+  // are mutually exclusive). New Durable Object namespaces must be
+  // SQLite-backed: Cloudflare stopped allowing new KV-backed namespaces
+  // (changelog, 2026-07-09), so `"storage": "sqlite"` is not optional here —
+  // it is also the whole reason this class can host a TypeGraph store at all
+  // (see src/backend.ts).
+  "exports": {
+    "AgentMaterializer": { "type": "durable-object", "storage": "sqlite" }
+  }
+}

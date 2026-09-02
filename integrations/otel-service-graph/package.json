@@ -1,0 +1,32 @@
+{
+  "name": "@nicia-ai/asg-otel-service-graph",
+  "private": true,
+  "type": "module",
+  "description": "OpenTelemetry spans as a durable stream: a bitemporal service-dependency graph that answers what the topology looked like during the incident.",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm test && pnpm demo"
+  },
+  "dependencies": {
+    "@nicia-ai/agent-stream-graph": "workspace:*",
+    "@nicia-ai/typegraph": "0.54.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "^2.10.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@opentelemetry/sdk-trace-node": "^2.10.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

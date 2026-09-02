@@ -1,0 +1,27 @@
+{
+  "name": "@nicia-ai/asg-claude-agent",
+  "private": true,
+  "type": "module",
+  "description": "Project a live Claude Agent SDK session — tool calls, results, subagents — into a bitemporal belief graph.",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm test && pnpm demo"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.250",
+    "@nicia-ai/agent-stream-graph": "workspace:*",
+    "@nicia-ai/typegraph": "0.54.0",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

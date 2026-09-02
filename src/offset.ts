@@ -1,6 +1,28 @@
-type ParsedOffset = readonly bigint[];
+/**
+ * Electric's maximal operation position within a log sequence number, written
+ * `inf` — as in `"0_inf"`, which is what `ShapeStream.lastOffset` reports once a
+ * shape has caught up but no live message has arrived yet.
+ *
+ * It is a REAL, resumable position, not a sentinel: Electric accepts it back,
+ * and a shape that is tailed in a loop (the pattern this package recommends)
+ * hands it to the checkpoint book on the first `up-to-date`. Ordering it is
+ * therefore on the ordinary path — the next batch's `"<lsn>_<n>"` has to compare
+ * against it. `inf` sorts above every integer in its own position and below the
+ * next LSN, which is the only total order consistent with what it means.
+ */
+const INFINITE_PART = Symbol("offset.inf");
+type OffsetPart = bigint | typeof INFINITE_PART;
+type ParsedOffset = readonly OffsetPart[];
 
-const OFFSET_PATTERN = /^\d+(?:_\d+)*$/;
+const OFFSET_PATTERN = /^\d+(?:_(?:\d+|inf))*$/;
+
+/** Order two offset components, with `inf` above every integer. */
+function compareParts(left: OffsetPart, right: OffsetPart): number {
+  if (left === right) return 0;
+  if (left === INFINITE_PART) return 1;
+  if (right === INFINITE_PART) return -1;
+  return left < right ? -1 : 1;
+}
 
 /**
  * Separator between a composite offset's base and its sub-offset.
@@ -41,7 +63,7 @@ export const STREAM_START = "-1";
 
 function parseOffset(offset: string): ParsedOffset | undefined {
   if (!OFFSET_PATTERN.test(offset)) return undefined;
-  return offset.split("_").map((part) => BigInt(part));
+  return offset.split("_").map((part) => (part === "inf" ? INFINITE_PART : BigInt(part)));
 }
 
 /** Render a {@link CompositeOffset} as the single opaque string a cursor stores. */
@@ -78,7 +100,9 @@ export function parseCompositeOffset(offset: string): CompositeOffset | undefine
  *   then `consumed` numerically. Numeric comparison is what lets the sub-offset
  *   grow past 9 without padding, matching how numeric-tuple bases are handled.
  * - Both numeric-tuple → component-wise `BigInt` comparison (missing trailing
- *   components are treated as `0n`).
+ *   components are treated as `0n`). Electric's `inf` component sorts above
+ *   every integer in its position, so `"0_inf"` falls after `"0_9"` and before
+ *   `"1_0"`.
  * - Both non-numeric → lexicographic `String` comparison (consistent ordering
  *   for sources that use opaque string offsets).
  * - Formats that do not match → THROWS. A stream whose offsets switch format
@@ -109,10 +133,8 @@ export function compareOffsets(left: string, right: string): number {
   if (parsedLeft !== undefined && parsedRight !== undefined) {
     const length = Math.max(parsedLeft.length, parsedRight.length);
     for (let index = 0; index < length; index += 1) {
-      const leftPart = parsedLeft[index] ?? 0n;
-      const rightPart = parsedRight[index] ?? 0n;
-      if (leftPart < rightPart) return -1;
-      if (leftPart > rightPart) return 1;
+      const byPart = compareParts(parsedLeft[index] ?? 0n, parsedRight[index] ?? 0n);
+      if (byPart !== 0) return byPart;
     }
     return 0;
   }

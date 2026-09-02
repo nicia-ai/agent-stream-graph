@@ -99,6 +99,58 @@ describe("pull-wake subscriptions", () => {
     await expect(ensureSubscription(ref())).rejects.toThrow(/at least one of/);
   });
 
+  it("links every stream matching a pattern, including ones created later", async () => {
+    server.createStream("agents/sales-bot");
+    server.append("agents/sales-bot", [{ key: "s", label: "s1" }]);
+    // Deliberately outside the glob: `*` matches ONE segment, so a nested path
+    // must not link.
+    server.createStream("agents/nested/deep-bot");
+    server.append("agents/nested/deep-bot", [{ key: "d", label: "d1" }]);
+
+    await ensureSubscription({ ...ref(), pattern: "agents/*" });
+
+    // Created AFTER the subscription: a glob is matched live, so this links too.
+    server.createStream("agents/ops-bot");
+    server.append("agents/ops-bot", [{ key: "o", label: "o1" }]);
+
+    const claim = await claimSubscription(ref(), WORKER);
+    const paths = claim.streams.map((stream) => stream.path).sort();
+
+    expect(paths).toEqual(["agents/crm-agent", "agents/ops-bot", "agents/sales-bot"]);
+    await releaseSubscription(ref(), claim);
+  });
+
+  it("matches nested paths under a `**` pattern", async () => {
+    server.createStream("agents/nested/deep-bot");
+    server.append("agents/nested/deep-bot", [{ key: "d", label: "d1" }]);
+
+    await ensureSubscription({ ...ref(), pattern: "agents/**" });
+
+    const claim = await claimSubscription(ref(), WORKER);
+    const paths = claim.streams.map((stream) => stream.path).sort();
+
+    expect(paths).toEqual(["agents/crm-agent", "agents/nested/deep-bot"]);
+    await releaseSubscription(ref(), claim);
+  });
+
+  it("drains a pattern-linked fleet without naming a single stream", async () => {
+    server.createStream("agents/sales-bot");
+    server.append("agents/sales-bot", [{ key: "s", label: "s1" }]);
+    await ensureSubscription({ ...ref(), pattern: "agents/*" });
+
+    const result = await consumeSubscribed({
+      subscription: ref(),
+      worker: WORKER,
+      sourceFor: (stream) => sourceFor(stream.path),
+      store: belief,
+      checkpoints: book,
+      project,
+    });
+
+    expect(result.streams.map((stream) => stream.path).sort()).toEqual(["agents/crm-agent", "agents/sales-bot"]);
+    expect(await labels(belief)).toEqual({ a: "a1", b: "b1", s: "s1" });
+  });
+
   it("reports which streams have pending work, and fences a second claimant", async () => {
     await ensureSubscription({ ...ref(), streams: [STREAM_PATH] });
 
