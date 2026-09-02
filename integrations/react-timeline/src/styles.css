@@ -1,0 +1,554 @@
+/* ---------------------------------------------------------------------- *
+ * Tokens. Light palette lives on bare :root. Dark VALUES are defined once,
+ * below, as their own --dark-* custom properties; both dark TRIGGERS (the
+ * automatic prefers-color-scheme match, and an explicit [data-theme]
+ * override so a host page's manual theme toggle still wins) just assign
+ * the real tokens from those --dark-* values, so the palette itself never
+ * has to be kept in sync between two rules.
+ * ---------------------------------------------------------------------- */
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-sunken: #efece3;
+  --border: #ddd6c7;
+  --border-strong: #c7bda6;
+  --text: #211f19;
+  --text-muted: #6d6656;
+  --text-faint: #a49c86;
+  --accent: #2f5f74;
+  --accent-strong: #1f465a;
+  --contested: #a6432a;
+  --contested-bg: #f7e8e2;
+  --revised: #93711c;
+  --revised-bg: #f6efdd;
+  --shadow: 0 1px 2px rgba(33, 31, 25, 0.06), 0 8px 24px rgba(33, 31, 25, 0.05);
+  --radius: 10px;
+  --font-sans: "Iowan Old Style", "Palatino Linotype", Georgia, ui-serif, serif;
+  --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --dark-bg: #15140f;
+  --dark-surface: #1c1b15;
+  --dark-surface-sunken: #22211a;
+  --dark-border: #34321f;
+  --dark-border-strong: #4a4730;
+  --dark-text: #eee9db;
+  --dark-text-muted: #a89f89;
+  --dark-text-faint: #726b57;
+  --dark-accent: #7fb2c9;
+  --dark-accent-strong: #a3c9db;
+  --dark-contested: #e08466;
+  --dark-contested-bg: #3a2320;
+  --dark-revised: #e0bd6a;
+  --dark-revised-bg: #362c15;
+  --dark-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: var(--dark-bg);
+    --surface: var(--dark-surface);
+    --surface-sunken: var(--dark-surface-sunken);
+    --border: var(--dark-border);
+    --border-strong: var(--dark-border-strong);
+    --text: var(--dark-text);
+    --text-muted: var(--dark-text-muted);
+    --text-faint: var(--dark-text-faint);
+    --accent: var(--dark-accent);
+    --accent-strong: var(--dark-accent-strong);
+    --contested: var(--dark-contested);
+    --contested-bg: var(--dark-contested-bg);
+    --revised: var(--dark-revised);
+    --revised-bg: var(--dark-revised-bg);
+    --shadow: var(--dark-shadow);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: var(--dark-bg);
+  --surface: var(--dark-surface);
+  --surface-sunken: var(--dark-surface-sunken);
+  --border: var(--dark-border);
+  --border-strong: var(--dark-border-strong);
+  --text: var(--dark-text);
+  --text-muted: var(--dark-text-muted);
+  --text-faint: var(--dark-text-faint);
+  --accent: var(--dark-accent);
+  --accent-strong: var(--dark-accent-strong);
+  --contested: var(--dark-contested);
+  --contested-bg: var(--dark-contested-bg);
+  --revised: var(--dark-revised);
+  --revised-bg: var(--dark-revised-bg);
+  --shadow: var(--dark-shadow);
+}
+
+/* ---------------------------------------------------------------------- *
+ * Reset + base
+ * ---------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+ul {
+  margin: 0;
+}
+
+a {
+  color: var(--accent-strong);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* ---------------------------------------------------------------------- *
+ * App shell
+ * ---------------------------------------------------------------------- */
+.app {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-header h1 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-subtitle {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.mode-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.mode-badge--electric {
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.loading {
+  color: var(--text-muted);
+  padding: 2rem 0;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Scrubber
+ * ---------------------------------------------------------------------- */
+.scrubber-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.scrubber-step-button {
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.scrubber-step-button:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  border-color: var(--accent);
+}
+
+.scrubber-step-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.scrubber {
+  flex: 1;
+  min-width: 0;
+}
+
+.scrubber-caption {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin-bottom: 0.6rem;
+  min-height: 1.3em;
+}
+
+.scrubber-track-wrap {
+  position: relative;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+}
+
+.scrubber-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--scrubber-fill, 0%),
+    var(--border) var(--scrubber-fill, 0%)
+  );
+  outline-offset: 6px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.scrubber-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow);
+  transition: transform 120ms ease;
+}
+
+.scrubber-input::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+
+.scrubber-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.scrubber-input:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.scrubber-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 0;
+  pointer-events: none;
+}
+
+.scrubber-tick {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transform: translateX(-1px);
+}
+
+.scrubber-tick--past {
+  background: var(--accent);
+}
+
+.scrubber-tick--active {
+  width: 4px;
+  height: 4px;
+  top: -2px;
+  transform: translateX(-2px);
+  background: var(--accent-strong);
+}
+
+.scrubber-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  margin-top: 0.4rem;
+}
+
+.anchor-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.anchor-meta code {
+  color: var(--text-faint);
+}
+
+.now-badge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-strong);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Belief panel
+ * ---------------------------------------------------------------------- */
+.belief-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.belief-panel-header h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.belief-panel-summary {
+  margin-top: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.belief-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.entity-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.entity-card--contested {
+  border-color: var(--contested);
+}
+
+.entity-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.entity-kind {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.entity-label {
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.entity-attributes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.entity-attribute {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.87rem;
+  border-bottom: 1px dotted var(--border);
+  padding-bottom: 0.25rem;
+}
+
+.entity-attribute dt {
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.entity-attribute dt.entity-attribute-contested {
+  color: var(--contested);
+  font-weight: 600;
+}
+
+.entity-attribute dd {
+  color: var(--text);
+  text-align: right;
+}
+
+.entity-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.entity-validity {
+  color: var(--text-faint);
+}
+
+.entity-validity--closed {
+  color: var(--contested);
+}
+
+.badge {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge--contested {
+  background: var(--contested-bg);
+  color: var(--contested);
+}
+
+.badge--revised {
+  background: var(--revised-bg);
+  color: var(--revised);
+}
+
+.entity-revision {
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.entity-revision-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.entity-revision-fields li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.entity-revision-field {
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.entity-revision-arrow {
+  color: var(--revised);
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Not-yet-known
+ * ---------------------------------------------------------------------- */
+.not-yet-known {
+  border-top: 1px dashed var(--border-strong);
+  padding-top: 1rem;
+}
+
+.not-yet-known h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.not-yet-known-caption {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+}
+
+.ghost-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.ghost-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  color: var(--text-faint);
+  background: var(--surface-sunken);
+}
+
+.ghost-label {
+  font-family: var(--font-mono);
+}
+
+/* ---------------------------------------------------------------------- *
+ * Footer
+ * ---------------------------------------------------------------------- */
+.app-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  line-height: 1.5;
+}

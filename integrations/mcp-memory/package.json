@@ -1,0 +1,31 @@
+{
+  "name": "@nicia-ai/asg-mcp-memory",
+  "private": true,
+  "type": "module",
+  "description": "MCP server exposing an entity-resolved, time-travelable belief graph as recall / believedAt / whySoFar tools.",
+  "bin": {
+    "asg-mcp-memory": "./src/server.ts"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "demo": "tsx src/demo.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm test && pnpm demo"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@nicia-ai/agent-stream-graph": "workspace:*",
+    "@nicia-ai/typegraph": "0.54.0",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

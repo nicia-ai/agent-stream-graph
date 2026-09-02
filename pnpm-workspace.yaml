@@ -1,3 +1,14 @@
+# The published library is the root package. Everything below is private and
+# unpublished: `demos/` holds the flagship app, `integrations/` holds one
+# package per ecosystem integration. They depend on the library by
+# `workspace:*` — that is, on the BUILT package entrypoint rather than on
+# `src/` — so each one doubles as a standing test of what a consumer installs:
+# the `exports` map, ESM-only resolution, and the single-copy peer requirement
+# that TypeGraph's branded types impose.
+packages:
+  - "demos/*"
+  - "integrations/*"
+
 # pnpm 11 no longer reads the "pnpm" field in package.json, and it replaced
 # `onlyBuiltDependencies` / `ignoredBuiltDependencies` with this single map.
 # See https://pnpm.io/settings.
@@ -14,7 +25,36 @@ allowBuilds:
   # prebuilt artifact does not match the runtime Node ABI.
   better-sqlite3: false
 
+  # Links the platform-specific workerd binary that `wrangler dev` runs. Only
+  # the Cloudflare integration needs it; CI only ever does `deploy --dry-run`,
+  # which does not, but a local `wrangler dev` does.
+  workerd: true
+
   # Transitive install scripts of the @electric-ax/agents-runtime
   # devDependency, which only the live Deep Survey demo loads.
   "@google/genai": false
   protobufjs: false
+
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.250'
+  - '@anthropic-ai/claude-agent-sdk@0.3.250'
+  - '@cloudflare/workerd-darwin-64@1.20260828.1'
+  - '@cloudflare/workerd-darwin-arm64@1.20260828.1'
+  - '@cloudflare/workerd-linux-64@1.20260828.1'
+  - '@cloudflare/workerd-linux-arm64@1.20260828.1'
+  - '@cloudflare/workerd-windows-64@1.20260828.1'
+  - '@cloudflare/workers-types@5.20260828.1'
+  - '@tanstack/db@0.8.6'
+  - '@tanstack/electric-db-collection@0.4.6'
+  - '@tanstack/react-db@0.3.6'
+  - miniflare@5.20260828.0-alpha
+  - workerd@1.20260828.1
+  - wrangler@4.127.1
+  - '@nicia-ai/typegraph@0.53.0 || 0.54.0'

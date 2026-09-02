@@ -38,7 +38,7 @@ pnpm add drizzle-orm better-sqlite3
 > makes `consume({ store })` fail to typecheck with the notoriously unhelpful
 > `Type 'Store<G>' is not assignable to type 'Store<G>'`. Declaring them as peers
 > is what guarantees one copy. The supported range is TypeGraph
-> `>=0.52.0 <0.53.0` and Zod `^4` — the same range TypeGraph itself declares.
+> `>=0.54.0 <0.55.0` and Zod `^4` — the same range TypeGraph itself declares.
 >
 > **The transport clients are OPTIONAL peers**: install `@electric-sql/client`
 > or `@durable-streams/client` only for the transport you actually use. Both are
@@ -73,7 +73,7 @@ pnpm add drizzle-orm better-sqlite3
 > the adopted native transaction handle precisely typed. Drizzle-backed
 > constructors come from `@nicia-ai/typegraph/adapters/drizzle/sqlite/local`.
 >
-> This package is developed against TypeGraph 0.52.0 and better-sqlite3 13,
+> This package is developed against TypeGraph 0.54.0 and better-sqlite3 13,
 > which TypeGraph's optional peer range covers. better-sqlite3 13 ships N-API
 > prebuilds, so it needs no source build — `pnpm-workspace.yaml` declares it
 > under `allowBuilds` as deliberately not built. pnpm itself is pinned by the
@@ -127,6 +127,84 @@ await consume({ source, store: belief, checkpoints: book, project });
 const anchor = await book.anchorFor("crm-agent", "0042");
 const past = belief.asOfRecorded(anchor!); // a read-only view as of that offset
 ```
+
+## Demos
+
+Every demo below is self-contained: no network, no service, no API key. They are
+deterministic, they assert their own invariants rather than narrating them — a
+demo that would still print success if the library broke is worthless — and
+`pnpm demo:all` runs the whole set in CI so the showcase cannot rot.
+
+Start here. Each of these carries exactly one idea:
+
+| | What it proves |
+| --- | --- |
+| `pnpm demo:emit` | An agent's memory is an append-only log; the graph is a fold over it. Events are plain JSON — the demo round-trips them through `JSON.stringify` before applying any. |
+| `pnpm demo:time-travel` | "Why did the agent do that?" A decision is reproduced by reconstructing the belief it was made against, after the evidence is gone from the current graph. |
+| `pnpm demo:valid-time` | The fact that came back. A window closes, then reopens **in place** — one row, original `validFrom` intact — and the two time axes answer different questions. |
+| `pnpm demo:contradiction` | Two agents, one entity, no silent winner. `J. Doe` and `Jane Doe` collapse; the disagreement they carry is *flagged*, not averaged. |
+| `pnpm demo:crash-resume` | A real `SIGKILL` mid-stream. The resumed graph is byte-identical to an uninterrupted run, with the re-delivered change absorbed rather than duplicated. |
+| `pnpm demo:swarm` | One worker, a fleet of agent streams, pull-wake subscriptions. A failed batch hands the lease back instead of sitting on it. |
+
+Then the longer ones, which combine those ideas:
+
+| | What it proves |
+| --- | --- |
+| `pnpm demo` | The flagship: Deep Survey shared state converging into canonical concepts. |
+| `pnpm demo:mechanics` | consume → resume → per-agent time travel → merge, end to end. |
+| `pnpm demo:exactly-once` | Projection and cursor advance in one transaction, so a crash leaves nothing to re-deliver. |
+| `pnpm demo:fork-merge` | Fork the log at a checkpoint, let the branches diverge, reconcile them. |
+| `pnpm demo:provenance` | Retract a source and watch belief revision cascade through justifications. |
+
+## Integrations
+
+Beyond `examples/`, this repo carries a workspace of ecosystem integrations —
+`demos/newsroom` (the flagship app) and `integrations/*`. They are private and
+unpublished, and they exist for two reasons.
+
+The first is obvious: showing what this library looks like wired to the things
+people actually run. The second is not. Every demo in `examples/` imports
+`../src`, so nothing there exercises what a consumer *installs*. Each
+integration depends on `"@nicia-ai/agent-stream-graph": "workspace:*"` — the
+built `dist/`, through the real `exports` map, under Node's ESM resolver, with a
+single copy of TypeGraph. They are a standing test of the packaging claims, and
+CI runs each one's `verify` on every push.
+
+| Package | What it demonstrates |
+| --- | --- |
+| `integrations/mcp-memory` | An MCP server exposing the belief graph as `recall` / `believedAt` / `whySoFar`, so any agent gets entity-resolved, time-travelable memory. |
+| `integrations/claude-agent` | A Claude Agent SDK session — tool calls, results, subagents — projected into a bitemporal graph. |
+| `integrations/decoders` | The decoder seam, in ~20 lines per framework: Vercel AI SDK, LangGraph, and plain JSONL converging on one graph. |
+| `integrations/otel-service-graph` | OpenTelemetry spans as the stream. Answers "what did the topology look like *during* the incident". |
+| `integrations/electric-postgres` | The real thing: Electric over Postgres logical replication, live. |
+| `integrations/react-timeline` | The read side — TanStack DB plus a recorded-time scrubber that re-renders the belief at any anchor. |
+| `integrations/cloudflare-worker` | Per-agent Durable Objects on DO SQLite storage, and a reproduced account of why D1 is refused. |
+| `demos/newsroom` | The flagship: reporters disagree, the desk reviews a merge plan before it lands, a burned source cascades. |
+
+**What they do and do not prove.** Each package's README carries its own
+limitations; the ones worth knowing up front:
+
+- `electric-postgres` **has** been run against real Postgres + Electric
+  containers, which is how the `inf` offset bug below was found. CI runs its
+  offline fallback; the live path is a local runbook (`pnpm docker:up`).
+- `cloudflare-worker` runs against real local `workerd` and passes
+  `wrangler deploy --dry-run`, but no Cloudflare account was available: no real
+  deploy, no real D1 database, no multi-isolate concurrency.
+- `claude-agent`'s transcript fixture is hand-authored against the shipped
+  `sdk.d.ts`, not captured from a live session. Live mode is wired and typechecks
+  but has not run against a real model. `demos/newsroom`'s live reporters are in
+  the same position.
+- `react-timeline` was verified rendering in a real headless browser in its
+  offline mode; its Electric mode typechecks against the installed client but has
+  never been pointed at a live shape stream.
+- `integrations/decoders`' LangGraph decoder is typed structurally against that
+  framework's documented event shape — LangGraph is not installed — and says so.
+
+Two bugs in this library were found by building these, and both are fixed:
+`compareOffsets` could not order Electric's `"<lsn>_inf"` offset (which broke the
+recommended tail-in-a-loop pattern on essentially every fresh start), and the
+in-process Durable Streams stand-in ignored `pattern`, so glob subscriptions were
+untested end to end. That is the argument for integrations that actually run.
 
 Run the flagship Deep Survey convergence demo:
 
@@ -377,6 +455,17 @@ the demo's `exportGraphStream` → `importGraphStream` → `mergeIncremental` sh
   It reports rows INHERITED from the fork point, so a merge against an empty
   fork point — every row branch-created, its window travelling with its
   create — cannot populate it.
+- **A base-vs-branch conflict reports only the INCOMING value.** When a branch's
+  value conflicts with a row already committed to the target (rather than with
+  another branch in the same merge), `PropertyConflict.values` carries just the
+  incoming branch's contribution; the value that was KEPT is in `.resolution`,
+  not duplicated into `.values` under a synthetic base entry. Same-wave
+  branch-vs-branch conflicts do list both sides, so code written against that
+  shape reads a base conflict as one-sided and silently prints half of it. Two
+  independent demos in this repo made exactly that assumption before checking.
+  Relatedly, `readProvenance` rows DO carry a synthetic `__committed_base__`
+  branch id meaning "this row already existed" — filter it out when you are
+  listing contributors, or a pre-existing row acquires a phantom author.
 - **Stage an agent's belief into an `ingestionBranch`, not a plain `branch`.**
   A branch inherits the fork point's rows *and* its node uniqueness constraints,
   so staging a belief that holds an ALIAS of a canonical row — same unique value,
@@ -512,6 +601,19 @@ that wrote to a different store than the one it was handed, swallowed a write
 error, or issued only an empty bulk write (`bulkCreate([])` counts 0, since bulk
 methods count by input length).
 
+**The trap this sets for decoder authors: filter unmodeled messages at the
+SOURCE, not in the decoder.** A stream usually carries message types your graph
+does not model — control frames, status pings, progress events, lifecycle
+records. If a source turns each of those into a `ShapeChange` and the decoder
+returns no events for them, every one is a dropped insert and throws. The fix is
+not to invent a placeholder write; it is to never mint a `ShapeChange` for a
+message the decoder does not model, which is exactly what `electricShapeSource`
+does with `up-to-date` and `must-refetch`. Decide what is in the stream at the
+adapter boundary, and let the decoder assume everything it receives is
+meaningful. Belt and braces: make at least one write unconditional for every
+message type you DO model, so a modeled message can never decode to nothing
+because of the particular shape of its payload.
+
 The offset's anchor is `receipt.recorded` — the instant that transaction
 allocated — **not** `store.recordedNow()`. The recorded clock is graph-global:
 any concurrent writer advances it, so reading it after the commit can hand back
@@ -576,10 +678,37 @@ before it starts (`INVERTED_VALIDITY_WINDOW`), is refused and surfaces as a
 failed batch.
 
 **A resumed fact is one row, not two.** `clearValidTo: true` reopens a closed
-window in place: the row keeps its id *and* its original `validFrom`, so the gap
-shows up in valid time rather than as a duplicate entity. Reopening an
-already-open row is a no-op, and a replayed reopening coalesces like any other
-unchanged write.
+window in place: the row keeps its id *and* its original `validFrom`, so a
+resumption is not a duplicate entity.
+
+Be precise about what that means for valid time, because it is easy to read too
+much into. A row carries ONE window, so reopening **extends** that window across
+the interruption rather than recording two disjoint spans. A plain valid-time
+read at a coordinate inside the interruption therefore returns the row as valid
+once the reopening has been applied: `asOf(mid-gap)` answers "not employed"
+before the reopening lands and "employed" after it does. `pnpm demo:valid-time`
+asserts exactly that.
+
+The interruption is not lost, though — it is recoverable by asking both axes at
+once. Views compose in the order valid-time-then-recorded:
+
+```ts
+// "was she employed mid-gap, as far as we knew before the rehire was filed?"
+const view = store.asOf(midGap).asOfRecorded(anchorBeforeRehire);
+await view.edges.worksAt.getById(edgeId); // undefined — the gap, reconstructed
+```
+
+Note the `getById`: a `RecordedStoreView` is a reconstructing read and exposes
+only `query`, `subgraph`, graph algorithms, and `getById` / `getByIds` / `scan`
+— no `findByEndpoints`. So capture the row's id from a live read first, then
+address it on the composed view.
+
+If the interruption is a fact you need to query in valid time ALONE, without
+pinning recorded time, model the two spans as two rows: `clearValidTo` is for a
+fact that RESUMED, not for one with a hole in it.
+
+Reopening an already-open row is a no-op, and a replayed reopening coalesces like
+any other unchanged write.
 
 ```ts
 emit.edges.worksAt.upsert(person, company, undefined, { validTo: leftAt });
@@ -591,6 +720,23 @@ emit.edges.worksAt.upsert(person, company, undefined, { clearValidTo: true });
 both creates a row and ends it in the past stores no lower bound at all —
 "ended at T, start unknown" — and reads back at every coordinate before its end.
 `meta.validFrom` is `undefined` for such a row.
+
+**Building events from Zod-validated input? Reconstruct, don't pass through.**
+`exactOptionalPropertyTypes` and Zod's `.optional()` disagree in a way that bites
+exactly here. Zod infers `validTo?: string | undefined`; `ValidTime` declares
+`validTo?: string`. Under `exactOptionalPropertyTypes` those are *different
+types*, so a Zod-validated object is not assignable to a `GraphEvent` — and
+because the event types are distributive unions, TypeScript tends to report the
+mismatch against the wrong union arm, which makes it hard to read. Rebuild the
+event with the same spread-to-omit idiom this library uses internally rather than
+widening the type:
+
+```ts
+const valid = {
+  validFrom: input.validFrom,
+  ...(input.validTo === undefined ? {} : { validTo: input.validTo }),
+};
+```
 
 **But an event that ends a row an EARLIER event created still needs one.** A row
 created without a stated start gets the *ingest* instant as its lower bound, so
@@ -684,9 +830,14 @@ inside a caller-owned transaction that the belief projection (via
   backs the O(1) `lastOffset`. There is no compaction pass yet — long-running
   streams accumulate rows. Prune anchors older than the high-water minus N if
   you do not need deep replay.
-- **The Electric adapter is not live-service tested here.** Unit tests cover the
-  `@electric-sql/client` message shape, control messages, and timeout, but CI
-  does not run an Electric service.
+- **The Electric adapter is not live-service tested IN CI.** Unit tests cover the
+  `@electric-sql/client` message shape, control messages, and timeout, and CI
+  does not run an Electric service. It has, however, been exercised against real
+  Postgres + Electric containers via `integrations/electric-postgres` — which is
+  how the `"<lsn>_inf"` offset bug was found, and where `ElectricMustRefetchError`
+  was first seen firing on a genuine `ALTER TABLE` shape invalidation, with the
+  documented `read(undefined)` recovery confirmed. Run it yourself with
+  `pnpm --filter @nicia-ai/asg-electric-postgres docker:up` and then its `demo`.
 - **The Durable Streams adapters run against an in-process server, not a real
   one.** The tests drive the real `@durable-streams/client` against a faithful
   in-memory implementation of the slice this package speaks (offset reads,

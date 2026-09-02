@@ -1,0 +1,4 @@
+{"run":"run-jsonl","call":"c1","tool":"searchDocs","phase":"start","args":{"query":"graph databases"}}
+{"run":"run-jsonl","call":"c1","tool":"searchDocs","phase":"end","args":{"query":"graph databases"},"result":{"hits":3}}
+{"run":"run-jsonl","call":"c2","tool":"readFile","phase":"start","args":{"path":"docs/graph.md"}}
+{"run":"run-jsonl","call":"c2","tool":"readFile","phase":"end","args":{"path":"docs/graph.md"},"result":{"bytes":812}}

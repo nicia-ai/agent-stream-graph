@@ -47,6 +47,59 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The demos are the README's code. Nothing else in CI reads them, so a
+      # library change that breaks a narrative would break it silently. They
+      # are offline and deterministic by construction, and each asserts its own
+      # invariants, so a failure here is a real regression.
+      - name: Demos
+        run: pnpm demo:all
+
+  # Each package under `integrations/` and `demos/` consumes the BUILT package
+  # (`workspace:*` → `dist/`), not `src/`. That is deliberate: every demo in
+  # `examples/` reaches into `src/`, so nothing else in this repo exercises what
+  # a consumer actually installs — the `exports` map, ESM-only resolution, and
+  # the single-copy peer requirement TypeGraph's branded types impose. These
+  # jobs are therefore a standing test of the packaging claims, not just of the
+  # integrations themselves.
+  #
+  # Every package's `verify` runs offline: no Docker, no API key, no Cloudflare
+  # account. The paths that need those are local runbooks, and each package's
+  # README says which of its claims are unverified without them.
+  integrations:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - "@nicia-ai/asg-decoders"
+          - "@nicia-ai/asg-mcp-memory"
+          - "@nicia-ai/asg-claude-agent"
+          - "@nicia-ai/asg-otel-service-graph"
+          - "@nicia-ai/asg-electric-postgres"
+          - "@nicia-ai/asg-react-timeline"
+          - "@nicia-ai/asg-cloudflare-worker"
+          - "@nicia-ai/asg-newsroom"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native addon
+        run: pnpm rebuild better-sqlite3
+
+      # The integrations resolve `dist/`, so a stale build silently tests the
+      # wrong code. This bit for real during development.
+      - name: Build the library
+        run: pnpm build
+
+      - name: Verify ${{ matrix.package }}
+        run: pnpm --filter ${{ matrix.package }} verify
+
   # Everything above reaches `src/` through vitest and tsx, which resolve
   # specifiers Node does not. This job is the only one that exercises what a
   # consumer actually installs, and it exists because that gap shipped a

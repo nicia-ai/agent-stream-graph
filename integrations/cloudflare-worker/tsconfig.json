@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src"],
+  // d1-refusal.ts runs under plain Node (better-sqlite3), never under
+  // workerd, so it cannot share this config's `@cloudflare/workers-types`
+  // globals — see tsconfig.verify.json and the README's "Verification" table.
+  "exclude": ["src/d1-refusal.ts"]
+}
