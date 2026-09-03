@@ -1,6 +1,7 @@
 import {
   asEdgeId,
   asNodeId,
+  type EdgeCollection,
   type EdgeKinds,
   type GetEdgeType,
   type GetNodeType,
@@ -250,10 +251,25 @@ export function graphEmitter<G extends GraphDef>(graph: G): GraphEmitter<G> {
 }
 
 // Each applier is generic in a SINGLE `K`, which is what keeps this module
-// cast-free: `event.kind` then has type `K` rather than the whole union, so
-// `tx.nodes[event.kind]` stays a deferred indexed access and typechecks directly
-// against `event.props`. Collapsing these into one function over `GraphEvent<G>`
-// forces `tx.edges[...]` to be reached through an assertion instead.
+// (almost) cast-free: `event.kind` then has type `K` rather than the whole
+// union, so `tx.nodes[event.kind]` stays a deferred indexed access and
+// typechecks directly against `event.props`. Collapsing these into one
+// function over `GraphEvent<G>` forces `tx.edges[...]` to be reached through
+// an assertion instead.
+//
+// `tx.edges[event.kind]` itself still needs one: since TypeGraph 0.55, its
+// endpoint-taking methods correlate `from`/`to` through the edge's `Pairs`
+// (source-dependent targets, e.g. `to: { Employee: [...], Student: [...] }`).
+// `EdgeAllowedPairs<G["edges"][K]>` is deferred for a generic `K` spanning the
+// whole kind union, same as `getEdgeKinds`/`ErasedEmitter` below, and a
+// deferred `Pairs` blocks the whole argument tuple from typechecking. This
+// module's own `EdgeFromKinds`/`EdgeToKinds` (above) don't derive that
+// correlation either — they read `to` only as a plain array — so
+// `UncorrelatedEdgeCollection` asks for `EdgeCollection`'s uncorrelated
+// default `Pairs`, which is what 0.54 always had. A graph using
+// source-dependent `to` maps still validates the pairing at the write itself;
+// this only widens what typechecks at this one call site.
+type UncorrelatedEdgeCollection<G extends GraphDef, K extends EdgeKinds<G>> = EdgeCollection<GetEdgeType<G, K>>;
 
 async function upsertNode<G extends GraphDef, K extends NodeKinds<G>>(
   tx: TransactionContext<G>,
@@ -273,7 +289,8 @@ async function upsertEdge<G extends GraphDef, K extends EdgeKinds<G>>(
   tx: TransactionContext<G>,
   event: EdgeUpsertEvent<G, K>,
 ): Promise<void> {
-  await tx.edges[event.kind].getOrCreateByEndpoints(event.from, event.to, event.props, {
+  const edges = tx.edges[event.kind] as UncorrelatedEdgeCollection<G, K>;
+  await edges.getOrCreateByEndpoints(event.from, event.to, event.props, {
     ...validTimeOptions(event),
     // Without this the call is `ensure`, not `upsert`: TypeGraph's default
     // `ifExists: "return"` hands back the existing edge and writes nothing, so
@@ -290,10 +307,11 @@ async function removeEdge<G extends GraphDef, K extends EdgeKinds<G>>(
   tx: TransactionContext<G>,
   event: EdgeRemoveEvent<G, K>,
 ): Promise<void> {
+  const edges = tx.edges[event.kind] as UncorrelatedEdgeCollection<G, K>;
   // `EdgeCollection.delete` takes an id, so the edge has to be located first.
   // Returning silently when it is absent keeps a re-delivered removal a no-op
   // rather than an error, matching how `consume` already treats a no-op delete.
-  const existing = await tx.edges[event.kind].findByEndpoints(event.from, event.to);
+  const existing = await edges.findByEndpoints(event.from, event.to);
   if (existing === undefined) return;
   await tx.edges[event.kind].delete(asEdgeId(existing.id));
 }

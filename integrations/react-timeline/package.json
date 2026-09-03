@@ -10,16 +10,16 @@
     "verify": "pnpm typecheck && pnpm build"
   },
   "dependencies": {
-    "@tanstack/electric-db-collection": "^0.4.6",
-    "@tanstack/react-db": "^0.3.6",
+    "@tanstack/electric-db-collection": "^0.4.7",
+    "@tanstack/react-db": "^0.3.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
   }

@@ -11,17 +11,17 @@
     "verify": "pnpm typecheck && pnpm demo"
   },
   "dependencies": {
-    "@electric-sql/client": "^1.5.26",
+    "@electric-sql/client": "^1.5.27",
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.54.0",
+    "@nicia-ai/typegraph": "0.55.0",
     "drizzle-orm": "0.45.2",
     "pg": "^8.23.0",
-    "zod": "4.4.3"
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/pg": "^8.23.1",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }
 }

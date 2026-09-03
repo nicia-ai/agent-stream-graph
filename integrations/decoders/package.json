@@ -11,13 +11,13 @@
   },
   "dependencies": {
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.54.0",
-    "zod": "4.4.3"
+    "@nicia-ai/typegraph": "0.55.0",
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
-    "ai": "^7.0.83",
-    "tsx": "^4.23.12",
+    "@types/node": "^26.4.1",
+    "ai": "^7.0.90",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }

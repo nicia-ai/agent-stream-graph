@@ -13,16 +13,16 @@
   },
   "dependencies": {
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.54.0",
+    "@nicia-ai/typegraph": "0.55.0",
     "drizzle-orm": "0.45.2",
-    "zod": "4.4.3"
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260828.1",
+    "@cloudflare/workers-types": "^5.20260902.1",
     "@types/better-sqlite3": "^9.6.0",
     "better-sqlite3": "13.0.3",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "tsx": "^4.23.12",
-    "wrangler": "^4.127.1"
+    "wrangler": "^4.128.0"
   }
 }

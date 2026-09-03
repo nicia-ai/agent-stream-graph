@@ -13,21 +13,21 @@
   },
   "dependencies": {
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.54.0",
+    "@nicia-ai/typegraph": "0.55.0",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.2",
-    "zod": "4.4.3"
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.250",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.258",
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"

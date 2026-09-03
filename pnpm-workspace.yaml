@@ -57,4 +57,4 @@ minimumReleaseAgeExclude:
   - miniflare@5.20260828.0-alpha
   - workerd@1.20260828.1
   - wrangler@4.127.1
-  - '@nicia-ai/typegraph@0.53.0 || 0.54.0'
+  - '@nicia-ai/typegraph@0.53.0 || 0.54.0 || 0.55.0'
