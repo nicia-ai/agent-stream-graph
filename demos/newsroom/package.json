@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.55.0",
+    "@nicia-ai/typegraph": "0.56.0",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.2",
     "zod": "4.5.4"
