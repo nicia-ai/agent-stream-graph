@@ -10,6 +10,7 @@ export type {
   CheckpointStore,
 } from "./checkpoint.js";
 export {
+  BeliefStoreNotHistoryEnabledError,
   consume,
   DEFAULT_MAX_BATCH_SIZE,
   InvalidMaxBatchSizeError,

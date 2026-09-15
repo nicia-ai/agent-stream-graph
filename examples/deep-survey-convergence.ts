@@ -301,8 +301,9 @@ async function projectViaDurableConsumer(input: DeepSurveyConvergenceInput): Pro
     const conceptsAt = async (offset: string): Promise<number> => {
       const anchor = await book.anchorFor("deep-survey", offset);
       const view = anchor === undefined ? belief : belief.asOfRecorded(anchor);
-      const rows = await view.query().from("Concept", "c").select((ctx) => ({ id: ctx.c.id })).execute();
-      return rows.length;
+      // `count()` counts in SQL. Selecting ids only to read `.length` shipped
+      // every row to the client to throw it away.
+      return view.query().from("Concept", "c").count();
     };
     const firstOffset = input.wiki[0]!.offset;
     const lastOffset = input.wiki[input.wiki.length - 1]!.offset;

@@ -16,16 +16,16 @@
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.56.0",
+    "@nicia-ai/typegraph": "0.62.0",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.2",
-    "zod": "4.5.4"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }

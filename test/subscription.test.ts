@@ -2,7 +2,7 @@ import {
   createStoreWithSchema,
   defineGraph,
   defineNode,
-  type Store,
+  type HistoryStore,
 } from "@nicia-ai/typegraph";
 import { createLocalSqliteBackend } from "@nicia-ai/typegraph/adapters/drizzle/sqlite/local";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -39,7 +39,7 @@ const beliefGraph = defineGraph({
   nodes: { Item: { type: Item } },
   edges: {},
 });
-type BeliefStore = Store<typeof beliefGraph>;
+type BeliefStore = HistoryStore<typeof beliefGraph>;
 
 const project: Projector<typeof beliefGraph, Message> = async (tx, change) => {
   await tx.nodes.Item.upsertById(change.key, { label: change.value.label });

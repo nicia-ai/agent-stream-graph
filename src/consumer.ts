@@ -1,4 +1,9 @@
-import type { GraphDef, RecordedInstant, Store, TransactionContext } from "@nicia-ai/typegraph";
+import type {
+  GraphDef,
+  HistoryStore,
+  RecordedInstant,
+  TransactionContext,
+} from "@nicia-ai/typegraph";
 
 import type { CheckpointBook } from "./checkpoint.js";
 import { compareOffsets } from "./offset.js";
@@ -16,7 +21,11 @@ import type { Operation, ShapeChange } from "./types.js";
  * per `change.shape`.
  *
  * Write through the transaction-scoped `tx` you are handed (its `nodes`/`edges`
- * collections), not a captured store reference. Every insert/update change is
+ * collections), not a captured store reference. Read through it too: `tx` carries
+ * the full transaction-bound read surface (`query`, `neighbors`, `countNeighbors`,
+ * `subgraph`, `batchOnce`), so a read-modify-write projector observes its own
+ * earlier writes inside the same atomic boundary instead of reaching back to the
+ * store for a read that would not see them. Every insert/update change is
  * expected to complete at least one write intent; a `delete` may be a legitimate
  * no-op (deleting an absent key). The consumer treats an insert/update that
  * completes no write intent as a dropped change and throws
@@ -48,8 +57,12 @@ export const DEFAULT_MAX_BATCH_SIZE = 1000;
 
 export type ConsumeArgs<G extends GraphDef, V = Record<string, unknown>> = Readonly<{
   source: ShapeSource<V>;
-  /** Belief store to project into. MUST be created with `{ history: true }`. */
-  store: Store<G>;
+  /**
+   * Belief store to project into. `HistoryStore` — not `Store` — so a store
+   * created without `{ history: true }` is rejected at the call site rather than
+   * silently producing offsets with no recorded anchor to replay them from.
+   */
+  store: HistoryStore<G>;
   checkpoints: CheckpointBook;
   project: Projector<G, V>;
   /** Stop after this many changes — simulates a crash. Omit to drain the batch. */
@@ -87,6 +100,29 @@ export class ProjectorRecordedNothingError extends Error {
     this.operation = change.operation;
     this.shape = change.shape;
     this.key = change.key;
+  }
+}
+
+/**
+ * Thrown when the belief store was not created with `{ history: true }`.
+ *
+ * TypeScript callers are rejected by the `HistoryStore` parameter at the call
+ * site; this is the JavaScript-caller path. TypeGraph's own `recordedNow()`
+ * refuses a non-history store too, but only once `consume` reaches it — and it
+ * no longer does on an empty batch, which returns before the seed. Checking
+ * `historyEnabled` costs no SQL and fails the same way whether or not the stream
+ * happened to have work, so a misconfigured store cannot lie dormant until the
+ * first change arrives.
+ */
+export class BeliefStoreNotHistoryEnabledError extends Error {
+  constructor() {
+    super(
+      `Belief store was not created with { history: true }. Without recorded history a ` +
+        `transaction captures nothing, so no offset can carry a recorded-time anchor and ` +
+        `nothing consumed would ever be replayable. Recreate the store with ` +
+        `{ history: true, coalesceUnchangedUpserts: true }.`,
+    );
+    this.name = "BeliefStoreNotHistoryEnabledError";
   }
 }
 
@@ -163,6 +199,12 @@ export class InvalidMaxBatchSizeError extends RangeError {
  * undefined`), so the offset carries the prior anchor forward and
  * `anchorFor(offset)` still reconstructs the unchanged belief.
  *
+ * On a graph with no recorded history at all there is nothing to carry forward,
+ * so a no-op first batch would leave its offset uncheckpointed and re-deliver
+ * the whole run forever. Such a batch calls `tx.requestRecordedRevision()`,
+ * which allocates a recorded revision for a transaction that changes no entity,
+ * so the receipt still yields an instant — minted by this consumer's own commit.
+ *
  * Create the belief store with `{ history: true, coalesceUnchangedUpserts: true }`.
  * Coalescing makes a re-delivered byte-identical row a true no-op — the same
  * `writes.total === 1`, `recorded === undefined` shape as a no-op delete, which
@@ -187,14 +229,22 @@ export async function consume<G extends GraphDef, V = Record<string, unknown>>(
   if (!Number.isInteger(maxBatchSize) || maxBatchSize < 1) {
     throw new InvalidMaxBatchSizeError(maxBatchSize);
   }
+  if (args.store.historyEnabled !== true) {
+    throw new BeliefStoreNotHistoryEnabledError();
+  }
 
   const fromOffset = await args.checkpoints.lastOffset(args.source.name);
   const changes = await args.source.read(fromOffset);
+  // Nothing to apply, so nothing to anchor: skip the `recordedNow()` seed below,
+  // which is a SQL round trip whose value the loop would never read. A polling
+  // driver sits in this case whenever its stream is caught up.
+  if (changes.length === 0) return { processed: 0, fromOffset, lastOffset: fromOffset };
+
   let processed = 0;
   let lastOffset = fromOffset;
-  // Seeds the anchor a leading no-op change carries forward, and surfaces a
-  // store created without `{ history: true }` before any change is applied.
-  // `undefined` on a graph that has never been written to.
+  // Seeds the anchor a leading no-op change carries forward. `undefined` on a
+  // graph that has never been written to — the one case a batch has to mint its
+  // own (see the `requestRecordedRevision` note below).
   //
   // This is the ONE place the anchor comes from `recordedNow()` rather than a
   // receipt, and it is only ever checkpointed if the first change(s) at an
@@ -202,10 +252,12 @@ export async function consume<G extends GraphDef, V = Record<string, unknown>>(
   // coalesce — a re-delivered identical row). After a crash the change's own
   // commit instant is unrecoverable, so `recordedNow()` at resume is the best
   // available anchor: it reflects wherever the belief actually is, which for a
-  // crash-window replay is correctly AHEAD of the durable cursor. That is exact
-  // only under the library's invariant of ONE consumer per belief store — a
-  // concurrent writer could advance this clock past the change's real instant.
-  // Do not point two consumers at one belief store.
+  // crash-window replay is correctly AHEAD of the durable cursor. It also costs
+  // no recorded revision, which is what keeps a full replay of an unchanged log
+  // from churning history. That is exact only under the library's invariant of
+  // ONE consumer per belief store — a concurrent writer could advance this clock
+  // past the change's real instant. Do not point two consumers at one belief
+  // store.
   let anchor: RecordedInstant | undefined = await args.store.recordedNow();
 
   let index = 0;
@@ -231,7 +283,15 @@ export async function consume<G extends GraphDef, V = Record<string, unknown>>(
     // One transaction for the whole run, but a `measure` scope per change: the
     // batch receipt aggregates writes, so only the scoped receipts can tell a
     // dropped change from its neighbours' writes.
+    //
+    // `requestRecordedRevision()` is scoped to a missing anchor rather than
+    // requested unconditionally: it is only free when the batch writes anyway
+    // (it is idempotent and merges into the revision those writes allocate).
+    // Asking on every batch would burn a revision per run even when nothing
+    // changed, undoing exactly the replay churn `coalesceUnchangedUpserts`
+    // removes.
     const { receipt } = await args.store.transactionWithReceipt(async (tx) => {
+      if (anchor === undefined) tx.requestRecordedRevision();
       for (const change of batch) {
         const { receipt: scoped } = await tx.measure(async (change_tx) => {
           await args.project(change_tx, change);
@@ -253,11 +313,22 @@ export async function consume<G extends GraphDef, V = Record<string, unknown>>(
     // when the next change carries a strictly greater offset, or the batch ends.
     // A run split by maxBatchSize or cut short by `stopAfter` stops short of the
     // boundary, leaving the cursor at the prior boundary so the whole run is
-    // re-delivered and idempotently re-applied. Skip when there is no anchor yet
-    // (empty graph).
+    // re-delivered and idempotently re-applied.
     const next = changes[index];
     const atOffsetBoundary = next === undefined || compareOffsets(next.offset, offset) > 0;
-    if (atOffsetBoundary && anchor !== undefined) {
+    if (atOffsetBoundary) {
+      // Every batch that can reach a boundary without an anchor has already
+      // requested a recorded revision, so this cannot fire. It throws rather
+      // than skipping the checkpoint because skipping IS the failure this
+      // function exists to prevent: the offset would go unrecorded and the run
+      // would re-deliver forever, silently.
+      if (anchor === undefined) {
+        throw new Error(
+          `consume: no recorded anchor at offset boundary ${offset} on stream "${args.source.name}". ` +
+            `The batch neither captured a recorded instant nor honoured its requested revision, which ` +
+            `should be unreachable on a history-enabled store. This is a bug in agent-stream-graph.`,
+        );
+      }
       await args.checkpoints.record(args.source.name, offset, anchor);
       lastOffset = offset;
     }

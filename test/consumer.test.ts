@@ -4,8 +4,8 @@ import {
   createStoreWithSchema,
   defineGraph,
   defineNode,
+  type HistoryStore,
   type RecordedInstant,
-  type Store,
 } from "@nicia-ai/typegraph";
 import { createLocalSqliteBackend } from "@nicia-ai/typegraph/adapters/drizzle/sqlite/local";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -84,6 +84,7 @@ vi.mock("@electric-sql/client", () => ({
 }));
 
 import {
+  BeliefStoreNotHistoryEnabledError,
   checkpointGraph,
   consume,
   electricShapeSource,
@@ -130,7 +131,7 @@ const beliefGraph = defineGraph({
   nodes: { Item: { type: Item } },
   edges: {},
 });
-type BeliefStore = Store<typeof beliefGraph>;
+type BeliefStore = HistoryStore<typeof beliefGraph>;
 
 const project: Projector<typeof beliefGraph> = async (store, change) => {
   if (change.operation === "delete") {
@@ -189,11 +190,11 @@ describe("consume", () => {
   let book: CheckpointBook;
   let source: ShapeSource;
 
-  async function setup(history: boolean): Promise<void> {
+  async function setup(): Promise<void> {
     [belief] = await createStoreWithSchema(
       beliefGraph,
       createLocalSqliteBackend().backend,
-      { history },
+      { history: true },
     );
     const [cursor] = await createStoreWithSchema(
       checkpointGraph,
@@ -204,7 +205,7 @@ describe("consume", () => {
   }
 
   beforeEach(async () => {
-    await setup(true);
+    await setup();
   });
 
   it("resumes from the durable checkpoint after a crash", async () => {
@@ -573,10 +574,23 @@ describe("consume", () => {
   });
 
   it("rejects a belief store without { history: true }", async () => {
-    await setup(false);
+    // TypeScript rejects this at the call site — `consume` takes a
+    // `HistoryStore`. The cast stands in for a JavaScript caller, and asserts
+    // the runtime guard fires before any change is read.
+    const [plain] = await createStoreWithSchema(
+      beliefGraph,
+      createLocalSqliteBackend().backend,
+    );
+    const read = vi.fn(source.read);
     await expect(
-      consume({ source, store: belief, checkpoints: book, project }),
-    ).rejects.toThrow(/history/i);
+      consume({
+        source: { ...source, read },
+        store: plain as unknown as HistoryStore<typeof beliefGraph>,
+        checkpoints: book,
+        project,
+      }),
+    ).rejects.toThrow(BeliefStoreNotHistoryEnabledError);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("orders non-padded Electric-style numeric offsets", async () => {
@@ -655,10 +669,23 @@ describe("consume", () => {
     expect(await labels(belief)).toEqual({ a: "a1" });
   });
 
-  it("skips the checkpoint when the first change is a no-op on an empty graph", async () => {
-    // No prior writes, so the recorded high-water is undefined and there is no
-    // anchor to checkpoint. The consumer must not throw; it skips the checkpoint
-    // so re-delivery re-processes.
+  it("does no store work when the stream is already caught up", async () => {
+    // A polling driver sits in this case whenever its stream has nothing new.
+    // Reading the recorded clock here is a SQL round trip whose value nothing
+    // would go on to read, so `consume` returns before the seed.
+    const clock = vi.spyOn(belief, "recordedNow");
+    await expect(
+      consume({ source: mockShapeSource("test", []), store: belief, checkpoints: book, project }),
+    ).resolves.toEqual({ processed: 0, fromOffset: undefined, lastOffset: undefined });
+    expect(clock).not.toHaveBeenCalled();
+  });
+
+  it("mints an anchor when the first change is a no-op on an empty graph", async () => {
+    // No prior writes, so the recorded high-water is undefined and a no-op
+    // change captures nothing — there would be no anchor to checkpoint and the
+    // change would re-deliver forever. The batch requests a recorded revision so
+    // its offset still carries an instant, and that instant reconstructs the
+    // (empty) belief the offset names.
     const emptyNoop = mockShapeSource("test", [
       {
         offset: "001",
@@ -673,7 +700,30 @@ describe("consume", () => {
     ).resolves.toMatchObject({
       processed: 1,
     });
-    expect(await book.lastOffset("test")).toBeUndefined();
+    expect(await book.lastOffset("test")).toBe("001");
+    const at1 = await book.anchorFor("test", "001");
+    expect(at1).toBeDefined();
+    expect(await labels(belief.asOfRecorded(at1!))).toEqual({});
+
+    // Re-delivery of the same no-op now finds an anchor to carry forward, so it
+    // mints no second revision.
+    const clock = await belief.recordedNow();
+    await consume({
+      source: mockShapeSource("test", [
+        {
+          offset: "002",
+          shape: "item",
+          key: "ghost",
+          operation: "delete",
+          value: {},
+        },
+      ]),
+      store: belief,
+      checkpoints: book,
+      project,
+    });
+    expect(await belief.recordedNow()).toBe(clock);
+    expect(await book.anchorFor("test", "002")).toBe(at1);
   });
 
   it("throws when an insert/update change records no write (dropped change)", async () => {

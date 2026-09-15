@@ -20,7 +20,7 @@ import { REPORTERS, type ReporterId } from "../fixtures/dispatches.js";
 import { describeConflict, formatCommitOutcome, formatReviewQueue, provenanceBylines } from "./desk/editor.js";
 import { formatRetractionReport } from "./desk/retract.js";
 import { closeDeskRun, type DeskEvent, findValueConflict, runDesk } from "./desk/run.js";
-import { claimRows, storyRows, subjectRows } from "./desk/views.js";
+import { claimRows, reporterRows, subjectRows } from "./desk/views.js";
 import type { NewsroomGraph } from "./graph.js";
 import { runAsMain } from "./run-as-main.js";
 
@@ -56,8 +56,7 @@ export async function main(): Promise<void> {
     for (const reporterId of REPORTERS) {
       const materialization = run.newsroom.get(reporterId);
       if (materialization === undefined) throw new Error(`main: no materialization for ${reporterId}`);
-      const claims = await claimRows(materialization.belief);
-      const stories = await storyRows(materialization.belief);
+      const { claims, stories } = await reporterRows(materialization.belief);
       console.log(`\n  ${reporterId} (${materialization.result.processed} event(s) consumed):`);
       for (const claim of claims) {
         console.log(`    claim  ${claim.value.padEnd(6)} (${claim.confidence}) — ${claim.text}`);

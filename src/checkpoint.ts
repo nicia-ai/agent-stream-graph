@@ -151,9 +151,14 @@ export function typeGraphCheckpoints(store: CheckpointStore): CheckpointBook {
         asNodeId(checkpointRowId(stream, offset)),
       );
       // Re-brand at the storage boundary: the anchor round-tripped through an
-      // untyped `z.string()` column. `asRecordedInstant` validates the canonical
-      // `r1:<revision>:<timestamp>` form, so a hand-edited or corrupted row fails
-      // here rather than deeper in an `asOfRecorded` read.
+      // untyped `z.string()` column. `asRecordedInstant` validates both anchor
+      // forms — TypeGraph-owned `r1:<revision>:<timestamp>` and engine-native
+      // `e1:<engine revision>:<timestamp>`, which a backend declaring
+      // `recordedTime` mints — so a hand-edited or corrupted row fails here
+      // rather than deeper in an `asOfRecorded` read. Order anchors with
+      // `compareRecordedInstants`, never by parsing a revision out: it refuses to
+      // compare across forms, and `recordedInstantRevision` refuses `e1:`
+      // outright, its token being opaque to TypeGraph.
       return row === undefined ? undefined : asRecordedInstant(row.anchor);
     },
   };

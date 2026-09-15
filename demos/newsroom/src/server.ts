@@ -22,7 +22,7 @@ import { asNodeId } from "@nicia-ai/typegraph";
 import { REPORTERS, type ReporterId } from "../fixtures/dispatches.js";
 import { provenanceBylines } from "./desk/editor.js";
 import { closeDeskRun, type DeskEvent, type DeskRun, runDesk } from "./desk/run.js";
-import { claimRows, storyRows, subjectRows } from "./desk/views.js";
+import { deskRows, reporterRows } from "./desk/views.js";
 import { runAsMain } from "./run-as-main.js";
 
 const DEFAULT_PORT = 8879;
@@ -34,7 +34,7 @@ const DEFAULT_PORT = 8879;
 async function reporterPayload(run: DeskRun, reporterId: ReporterId) {
   const materialization = run.newsroom.get(reporterId);
   if (materialization === undefined) throw new Error(`reporterPayload: no materialization for ${reporterId}`);
-  const [claims, stories] = await Promise.all([claimRows(materialization.belief), storyRows(materialization.belief)]);
+  const { claims, stories } = await reporterRows(materialization.belief);
   return {
     id: reporterId,
     processed: materialization.result.processed,
@@ -49,11 +49,7 @@ async function reportersPayload(run: DeskRun) {
 }
 
 async function canonicalPayload(run: DeskRun) {
-  const [subjects, claims, stories] = await Promise.all([
-    subjectRows(run.canonical),
-    claimRows(run.canonical),
-    storyRows(run.canonical),
-  ]);
+  const { subjects, claims, stories } = await deskRows(run.canonical);
   const bylineMap = await provenanceBylines(run.canonical, subjects.map((subject) => subject.id));
   const bylines: Record<string, readonly string[]> = Object.fromEntries(bylineMap);
   return { subjects, claims, stories, bylines };
