@@ -13,6 +13,7 @@ import {
   defineEdge,
   defineGraph,
   defineNode,
+  expr,
   searchable,
   type TransactionContext,
 } from "@nicia-ai/typegraph";
@@ -190,13 +191,11 @@ const deepSurveyGraph = defineGraph({
 
 type DeepSurveyStore = DemoStore<typeof deepSurveyGraph>;
 
-type MentionRow = Readonly<{
-  wikiKey: string;
-  title: string;
-  author: string;
-  conceptId: string;
+/** One canonical concept with the wiki pages that mention it, ordered. */
+type ConceptMentions = Readonly<{
   conceptName: string;
   conceptKind: string;
+  mentions: readonly Readonly<{ wikiKey: string; title: string; author: string }>[];
 }>;
 
 // EXTRACTION: substring alias matching — a wiki entry mentions a concept when
@@ -313,23 +312,6 @@ async function projectViaDurableConsumer(input: DeepSurveyConvergenceInput): Pro
   }
 }
 
-async function mentionRows(store: DeepSurveyStore): Promise<readonly MentionRow[]> {
-  return store
-    .query()
-    .from("WikiPage", "w")
-    .traverse("mentions", "m")
-    .to("Concept", "c")
-    .select((ctx) => ({
-      wikiKey: ctx.w.key,
-      title: ctx.w.title,
-      author: ctx.w.author,
-      conceptId: ctx.c.id,
-      conceptName: ctx.c.name,
-      conceptKind: ctx.c.category,
-    }))
-    .execute();
-}
-
 export type DeepSurveyConvergenceInput = Readonly<{
   title: string;
   wiki: readonly WikiEntry[];
@@ -369,22 +351,40 @@ function printEntryScopedMentions(input: DeepSurveyConvergenceInput): void {
   }
 }
 
+/**
+ * The canonical projection, shaped in SQL rather than in memory: one row per
+ * concept, each carrying its mentioning wiki pages as an ordered record array.
+ * `expr.collect` does the grouping and the inner ordering the database is
+ * already sorting for, so nothing here rebuilds a Map or re-sorts what arrives.
+ */
+async function conceptMentions(store: DeepSurveyStore): Promise<readonly ConceptMentions[]> {
+  return store
+    .query()
+    .from("WikiPage", "w")
+    .traverse("mentions", "m")
+    .to("Concept", "c")
+    .groupBy((ctx) => [ctx.c.name, ctx.c.category])
+    .project((ctx) => ({
+      conceptName: ctx.c.name,
+      conceptKind: ctx.c.category,
+      mentions: expr.collect(
+        { wikiKey: ctx.w.key, title: ctx.w.title, author: ctx.w.author },
+        { orderBy: [{ expression: ctx.w.key }] },
+      ),
+    }))
+    .orderBy((ctx) => ctx.c.name)
+    .execute();
+}
+
 async function printCanonicalGraph(canonical: DeepSurveyStore): Promise<void> {
-  const rows = await mentionRows(canonical);
-  const byConcept = new Map<string, MentionRow[]>();
-  for (const row of rows) {
-    const existing = byConcept.get(row.conceptName) ?? [];
-    existing.push(row);
-    byConcept.set(row.conceptName, existing);
-  }
+  const concepts = await conceptMentions(canonical);
 
   console.log("\n  TypeGraph semantic projection");
-  console.log(`    canonical concepts: ${byConcept.size}`);
-  for (const [conceptName, conceptRows] of [...byConcept.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    const sample = conceptRows[0]!;
-    console.log(`      ${conceptName} (${sample.conceptKind})`);
-    for (const row of [...conceptRows].sort((left, right) => left.wikiKey.localeCompare(right.wikiKey))) {
-      console.log(`        mentioned by ${row.author}/${row.wikiKey}: ${row.title}`);
+  console.log(`    canonical concepts: ${concepts.length}`);
+  for (const concept of concepts) {
+    console.log(`      ${concept.conceptName} (${concept.conceptKind})`);
+    for (const mention of concept.mentions) {
+      console.log(`        mentioned by ${mention.author}/${mention.wikiKey}: ${mention.title}`);
     }
   }
 }

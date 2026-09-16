@@ -13,13 +13,13 @@ importers:
         version: 0.2.7
       '@electric-ax/agents-runtime':
         specifier: ^0.6.3
-        version: 0.6.3(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@tanstack/react-db@0.3.8(react@19.3.0)(typescript@7.0.2))(react@19.3.0)(supports-color@10.2.2)(typescript@7.0.2)(ws@8.21.3)
+        version: 0.6.3(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@tanstack/react-db@0.4.1(react@19.3.0)(typescript@7.0.2))(react@19.3.0)(supports-color@10.2.2)(typescript@7.0.2)(ws@8.21.3)
       '@electric-sql/client':
         specifier: ^1.5.28
         version: 1.5.28
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
@@ -31,7 +31,7 @@ importers:
         version: 13.0.3
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -54,21 +54,21 @@ importers:
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       zod:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.271
-        version: 0.3.271(@anthropic-ai/sdk@0.121.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(zod@4.6.5)
+        specifier: ^0.3.272
+        version: 0.3.272(@anthropic-ai/sdk@0.121.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(zod@4.6.5)
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
@@ -106,20 +106,20 @@ importers:
   integrations/claude-agent:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.271
-        version: 0.3.271(@anthropic-ai/sdk@0.121.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(zod@4.6.5)
+        specifier: ^0.3.272
+        version: 0.3.272(@anthropic-ai/sdk@0.121.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(zod@4.6.5)
       '@nicia-ai/agent-stream-graph':
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -146,18 +146,18 @@ importers:
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       zod:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
       '@cloudflare/workers-types':
-        specifier: ^5.20260914.1
-        version: 5.20260914.1
+        specifier: ^5.20260915.1
+        version: 5.20260915.1
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
@@ -172,7 +172,7 @@ importers:
         version: 7.0.2
       wrangler:
         specifier: ^4.131.2
-        version: 4.131.2(@cloudflare/workers-types@5.20260914.1)(@types/node@26.5.1)
+        version: 4.131.2(@cloudflare/workers-types@5.20260915.1)(@types/node@26.5.1)
 
   integrations/decoders:
     dependencies:
@@ -180,8 +180,8 @@ importers:
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -211,11 +211,11 @@ importers:
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -245,14 +245,14 @@ importers:
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -279,8 +279,8 @@ importers:
         specifier: workspace:*
         version: link:../..
       '@nicia-ai/typegraph':
-        specifier: 0.62.0
-        version: 0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
+        specifier: 0.63.0
+        version: 0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -304,7 +304,7 @@ importers:
         version: 13.0.3
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -328,11 +328,11 @@ importers:
   integrations/react-timeline:
     dependencies:
       '@tanstack/electric-db-collection':
-        specifier: ^0.4.8
-        version: 0.4.8(supports-color@10.2.2)(typescript@7.0.2)
+        specifier: ^0.4.10
+        version: 0.4.10(supports-color@10.2.2)(typescript@7.0.2)
       '@tanstack/react-db':
-        specifier: ^0.3.8
-        version: 0.3.8(react@19.3.0)(typescript@7.0.2)
+        specifier: ^0.4.1
+        version: 0.4.1(react@19.3.0)(typescript@7.0.2)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -380,52 +380,52 @@ packages:
     resolution: {integrity: sha512-yukP2tbcQQErG5gLCMBGvpvb/rM3D3KlTKG6eKKOdNHLHqtNNDEeBxdYrY/JL+O76B2ig5dXY19H/f1HFSvRiQ==}
     engines: {node: '>=22'}
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.271':
-    resolution: {integrity: sha512-7oRxBpz21LxxbcsNvwNFc7FKPhBjyPoB4KUh8+NWOSbngFTf9Ju9/LuMA0/s+20zBZSS1Lgei2M7XwqT1EtG+g==}
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.272':
+    resolution: {integrity: sha512-yIt4rUSY1xX5SspwInEnCSZv/Pik0y2z1jcrPZYeQMu6kfI+oNbVTMnHdY0mndYpK2sDgpJhjHH9Bf04YfNSQA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.271':
-    resolution: {integrity: sha512-9oWchAX522XXbUlbcg6Ln9z0lcdrfUe254lGTFibzoYq46cUUyZQ94+sJMlHfpHZ38k/JiKqn8Vc6vN67LjRZw==}
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.272':
+    resolution: {integrity: sha512-RrPHDceImDBlhyhzRrCAmG7LEDARnItT7EyB7qVzN0BUYdOnevqBlMdonWdCIrzAZKgNPQxhQNi81FEvnUYFGQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.271':
-    resolution: {integrity: sha512-5TZMwyxjbEzppK0AiwmCku/MCB01gN8bsjM2m1w4axVdZusw84EI0/6twBOtgxmIqHBWiB6olUDQCWg0hNuaHQ==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.272':
+    resolution: {integrity: sha512-0RqFqN/0vZNl6CmDPEpOgn3agqfN4rwgIwagsf92qr+iCxNbPBBr4GXnu08pW2uuXYfqO6A+lI+BHKlOgqr05A==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.271':
-    resolution: {integrity: sha512-aorVz/QXorTNdMetLVL+jPq2rjciAkojpP96ELvdjGgeFO2a6bAqxBz27ttX3dCeiYP1ESFpJu1Z2KIUEZseuQ==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.272':
+    resolution: {integrity: sha512-QWGxO2APHlgSDsoELcTJQ5NMyfOekl616HUzCzaL6uQPYbR9EdgVXrl/7nlfwhHnRn20kiGRTU3LaeJB+AxZEg==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.271':
-    resolution: {integrity: sha512-5NcVlyaw8u06tW+dKjWHBJpqBVYkBvW3CDlzvKNsQZXDsM5Nc9a+wuE6APr06ZH2owAzstOyIv2mMbKpxSaPpA==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.272':
+    resolution: {integrity: sha512-gdUKIyH31oTGhSoBO7cBcFF/IprJZ78wp2pyTLPth9F3JdAEG1rUqdqqd9B5DHOd7PP8S/W73XRTV47nxBuMow==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.271':
-    resolution: {integrity: sha512-K+WUCw4kP+oWMzKkewbxKeR1XB8s/56fWSfzd/Iy9vsg95Cepfgj5/UrA3CQToECob/u83T8ID4sQZ5qAYQIBA==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.272':
+    resolution: {integrity: sha512-G5tLqsNkfEkAe0diNQ4mBw5TfSlIlY7rg1g4YekeD7yJMO+oi4+FzmOVEgFLPRY0Woo9snEo9JklQCL9CTGGlA==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.271':
-    resolution: {integrity: sha512-HAGXwDt2EDwhEaey8hiZrJmaPmS4f58jMALw3lnNSuTtQlGuZmxGvAXNau/xj//iv7fgpnNOLv83crbvSf5Tnw==}
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.272':
+    resolution: {integrity: sha512-SUJIAhy/s0zrxanqA8nkXce3eI7l8mMDRDMcaFmVgrE3eaG6G+WwpdDBR7ITW6TGoNlA9J1vX5EtOQKXhwN3bA==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.271':
-    resolution: {integrity: sha512-tYtYiBhamfwuXFNDCbEM4eyV2O4D3s1QFEnV/+acwhwnWJ++zPAz1AjIEbIQP1dLD/F5+gg5Xmc2yIaknVkvcw==}
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.272':
+    resolution: {integrity: sha512-B/QwFT5zP2S2YPaIenXWh0HtVnzmLFH4E4KdrYCRSUGujOsIP2Ctd72ubfiseuGKOmSAFonoNPGdm9VmcuP8hg==}
     cpu: [x64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk@0.3.271':
-    resolution: {integrity: sha512-+WJ9Kfzp7COiiyFWLi/y3amC1p6eK+SIKuF4aweCOuaOY4cETJFEHgEQZpaekbKK9/Vjk1fvM9f1Jfkx2cKV6w==}
+  '@anthropic-ai/claude-agent-sdk@0.3.272':
+    resolution: {integrity: sha512-8ZDi6DnyyCSS3ku7I28k524CBZDjDWwfJcumBD+rb0QPoGhZlIQcQncRWafSYopyNYNn/VNP7O7pllvSywOgUQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.93.0'
@@ -604,8 +604,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@cloudflare/workers-types@5.20260914.1':
-    resolution: {integrity: sha512-9xGgkvmG1lw0QdKJmSR5YNXaA221DfefpDCfPLz5PlzdYU0BXzxONQoWakLXTsFIz8xtsNfeUg+mbspIA5P4Xg==}
+  '@cloudflare/workers-types@5.20260915.1':
+    resolution: {integrity: sha512-3Lw2wkyVcEDdD0W6rNBmannaAkUsWGsO5TjbyHflWIDlhxtFRDFnxqHoDlg4YiVxinsIcBl1j9jW1kdruUhZpg==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -1256,8 +1256,8 @@ packages:
     resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
     engines: {node: '>=14.0.0'}
 
-  '@nicia-ai/typegraph@0.62.0':
-    resolution: {integrity: sha512-0gBi+WlqMNuMVoWO6Cj92EwXZ40GcUxIbag4ody9duWx/z0hOhOkHNKwQHwIJDOtiRCXDU4Uwzppej5aIbKpcA==}
+  '@nicia-ai/typegraph@0.63.0':
+    resolution: {integrity: sha512-szVg1VvwdNZBrNmg8szKQhug5G6ZBcHfewN7gLponUD6u7KdfbSiA6kIJSDqylnPU1N6q62o+hj3q4qT662qiw==}
     engines: {node: '>=22'}
     peerDependencies:
       '@electric-sql/pglite': '>=0.5.0 <0.6.0'
@@ -1522,8 +1522,8 @@ packages:
     peerDependencies:
       typescript: '>=4.7'
 
-  '@tanstack/db-ivm@0.1.20':
-    resolution: {integrity: sha512-Rpol77pI6JgVO4CtuKXZ/SQAzK4+BuiTSebRsIBo5qiiswtHKrvmiLNfbMXSHpXUF2xJkohFrJq9ndsMP1jAuA==}
+  '@tanstack/db-ivm@0.1.22':
+    resolution: {integrity: sha512-vpNIY6QnvFiVGPwdMVnh1OAZyFLioFkM5gQAqefghvgDhCMmWUPjYka2gw6w+2TBy742zsGPtLnpxBzUKXo9Jw==}
     peerDependencies:
       typescript: '>=4.7'
 
@@ -1532,25 +1532,22 @@ packages:
     peerDependencies:
       typescript: '>=4.7'
 
-  '@tanstack/db@0.9.0':
-    resolution: {integrity: sha512-wV8ln5zqTSM0Cn9eu+ePHExvzCa3A3cS+kxgRGryeBjDbMuLHrcTU1uGE8/6Etp+60LSfJFbhlojOZgj/kH/eQ==}
+  '@tanstack/db@0.9.2':
+    resolution: {integrity: sha512-jeyKbppXwjPNHe0GEVIvsvtirDCxjbPR2xphQaNjgteR15Y+Qnm+6IQNcd3zJ+98uJZ3ot9nagV3UNI+ckVRhQ==}
     peerDependencies:
       typescript: '>=4.7'
 
-  '@tanstack/electric-db-collection@0.4.8':
-    resolution: {integrity: sha512-or8yxjM2ofveigtjubgiOgAaDewLZd/4WI44BYPNpCzoazAH/JnUwxyJlqPNwzVZImI/8wRHQzd/7Ty7oEYPiw==}
+  '@tanstack/electric-db-collection@0.4.10':
+    resolution: {integrity: sha512-eGpvLkCi1UVB9/4vbwgLU3DaFBrR5dS9ZNAYZWn962UeKwv0pAbYUUKSMYdMUDeG7Yq2KEnotJD3xCWu3Y9uVQ==}
 
   '@tanstack/pacer-lite@0.2.2':
     resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
     engines: {node: '>=18'}
 
-  '@tanstack/react-db@0.3.8':
-    resolution: {integrity: sha512-RzsjljPjICaBeBZ9OvnIqXK4JN1f7JC75Nokl9bc0mhTh3VURwDqIoUHI06PGTBnJ0Bx2NPrW2fPXbx9JwZOwQ==}
+  '@tanstack/react-db@0.4.1':
+    resolution: {integrity: sha512-mA/a3TAufm0/AZUHmfyKKYfJnEH0XEzJ1Cymt5ZOLqR90MzzDK9KyaDh/JScYHYEipoRkKeRcmedAnHksP6yrg==}
     peerDependencies:
       react: '>=16.8.0'
-
-  '@tanstack/store@0.9.3':
-    resolution: {integrity: sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw==}
 
   '@tootallnate/quickjs-emscripten@0.23.0':
     resolution: {integrity: sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA==}
@@ -2393,8 +2390,8 @@ packages:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
 
-  magic-string@1.3.1:
-    resolution: {integrity: sha512-rm91zr2Ou+XueDTohjQQjdQEcYM6zVi8KVUCG8Ec3vHwUEKrhSdCNyfuIywkA6hcCAteIn0ZOtAHA6eGpiX+Pg==}
+  magic-string@1.3.2:
+    resolution: {integrity: sha512-rZJrVxZ8cnWz3Mlor980ckHFN60rm/eyjVOpeDAH2z1DsRNbve2o4AB7bGafQvGSdCK90gEfUdiMct4BCKSZTw==}
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -3108,44 +3105,44 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.271':
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.272':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.271(@anthropic-ai/sdk@0.121.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(zod@4.6.5)':
+  '@anthropic-ai/claude-agent-sdk@0.3.272(@anthropic-ai/sdk@0.121.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(zod@4.6.5)':
     dependencies:
       '@anthropic-ai/sdk': 0.121.0(zod@4.6.5)
       '@modelcontextprotocol/sdk': 1.30.0(supports-color@10.2.2)(zod@4.6.5)
       zod: 4.6.5
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.271
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.271
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.272
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.272
 
   '@anthropic-ai/sdk@0.121.0(zod@4.6.5)':
     dependencies:
@@ -3397,7 +3394,7 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20260911.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20260914.1': {}
+  '@cloudflare/workers-types@5.20260915.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
@@ -3446,7 +3443,7 @@ snapshots:
       - supports-color
       - zod
 
-  '@electric-ax/agents-runtime@0.6.3(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@tanstack/react-db@0.3.8(react@19.3.0)(typescript@7.0.2))(react@19.3.0)(supports-color@10.2.2)(typescript@7.0.2)(ws@8.21.3)':
+  '@electric-ax/agents-runtime@0.6.3(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@tanstack/react-db@0.4.1(react@19.3.0)(typescript@7.0.2))(react@19.3.0)(supports-color@10.2.2)(typescript@7.0.2)(ws@8.21.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.78.0(zod@4.6.5)
       '@durable-streams/client': 0.2.7
@@ -3470,7 +3467,7 @@ snapshots:
       zod: 4.6.5
       zod-to-json-schema: 3.25.2(zod@4.6.5)
     optionalDependencies:
-      '@tanstack/react-db': 0.3.8(react@19.3.0)(typescript@7.0.2)
+      '@tanstack/react-db': 0.4.1(react@19.3.0)(typescript@7.0.2)
       react: 19.3.0
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -3885,13 +3882,13 @@ snapshots:
 
   '@mozilla/readability@0.6.0': {}
 
-  '@nicia-ai/typegraph@0.62.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)':
+  '@nicia-ai/typegraph@0.63.0(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0))(pg@8.23.0)(zod@4.6.5)':
     dependencies:
       nanoid: 5.1.16
       zod: 4.6.5
     optionalDependencies:
       better-sqlite3: 13.0.3
-      drizzle-orm: 0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
+      drizzle-orm: 0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0)
       pg: 8.23.0
 
   '@opentelemetry/api@1.9.1': {}
@@ -4070,7 +4067,7 @@ snapshots:
       sorted-btree: 1.8.1
       typescript: 7.0.2
 
-  '@tanstack/db-ivm@0.1.20(typescript@7.0.2)':
+  '@tanstack/db-ivm@0.1.22(typescript@7.0.2)':
     dependencies:
       fractional-indexing: 3.4.0
       sorted-btree: 1.8.1
@@ -4083,19 +4080,18 @@ snapshots:
       '@tanstack/pacer-lite': 0.2.2
       typescript: 7.0.2
 
-  '@tanstack/db@0.9.0(typescript@7.0.2)':
+  '@tanstack/db@0.9.2(typescript@7.0.2)':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      '@tanstack/db-ivm': 0.1.20(typescript@7.0.2)
+      '@tanstack/db-ivm': 0.1.22(typescript@7.0.2)
       '@tanstack/pacer-lite': 0.2.2
       typescript: 7.0.2
 
-  '@tanstack/electric-db-collection@0.4.8(supports-color@10.2.2)(typescript@7.0.2)':
+  '@tanstack/electric-db-collection@0.4.10(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
       '@electric-sql/client': 1.5.28
       '@standard-schema/spec': 1.1.0
-      '@tanstack/db': 0.9.0(typescript@7.0.2)
-      '@tanstack/store': 0.9.3
+      '@tanstack/db': 0.9.2(typescript@7.0.2)
       debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
@@ -4103,15 +4099,13 @@ snapshots:
 
   '@tanstack/pacer-lite@0.2.2': {}
 
-  '@tanstack/react-db@0.3.8(react@19.3.0)(typescript@7.0.2)':
+  '@tanstack/react-db@0.4.1(react@19.3.0)(typescript@7.0.2)':
     dependencies:
-      '@tanstack/db': 0.9.0(typescript@7.0.2)
+      '@tanstack/db': 0.9.2(typescript@7.0.2)
       react: 19.3.0
       use-sync-external-store: 1.6.0(react@19.3.0)
     transitivePeerDependencies:
       - typescript
-
-  '@tanstack/store@0.9.3': {}
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -4220,7 +4214,7 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.0
       estree-walker: 3.0.3
-      magic-string: 1.3.1
+      magic-string: 1.3.2
     optionalDependencies:
       vite: 8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(tsx@4.23.13)
 
@@ -4387,9 +4381,9 @@ snapshots:
 
   diff@9.0.0: {}
 
-  drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260914.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0):
+  drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260915.1)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(better-sqlite3@13.0.3)(pg@8.23.0):
     optionalDependencies:
-      '@cloudflare/workers-types': 5.20260914.1
+      '@cloudflare/workers-types': 5.20260915.1
       '@opentelemetry/api': 1.9.1
       '@types/better-sqlite3': 9.6.0
       '@types/pg': 8.23.1
@@ -4833,7 +4827,7 @@ snapshots:
 
   luxon@3.7.2: {}
 
-  magic-string@1.3.1:
+  magic-string@1.3.2:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
@@ -5415,7 +5409,7 @@ snapshots:
       chai: 6.2.2
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
-      magic-string: 1.3.1
+      magic-string: 1.3.2
       obug: 2.2.1
       picomatch: 4.0.7
       std-env: 4.2.0
@@ -5466,7 +5460,7 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20260911.1
       '@cloudflare/workerd-windows-64': 1.20260911.1
 
-  wrangler@4.131.2(@cloudflare/workers-types@5.20260914.1)(@types/node@26.5.1):
+  wrangler@4.131.2(@cloudflare/workers-types@5.20260915.1)(@types/node@26.5.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260911.1)
@@ -5477,7 +5471,7 @@ snapshots:
       unenv: 2.0.0-rc.24
       workerd: 1.20260911.1
     optionalDependencies:
-      '@cloudflare/workers-types': 5.20260914.1
+      '@cloudflare/workers-types': 5.20260915.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - '@types/node'
