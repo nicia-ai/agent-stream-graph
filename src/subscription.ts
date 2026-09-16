@@ -1,4 +1,4 @@
-import type { GraphDef, Store } from "@nicia-ai/typegraph";
+import type { GraphDef, HistoryStore } from "@nicia-ai/typegraph";
 
 import type { CheckpointBook } from "./checkpoint.js";
 import { consume, type Projector } from "./consumer.js";
@@ -298,8 +298,8 @@ export type ConsumeSubscribedArgs<G extends GraphDef, V = Record<string, unknown
   worker: string;
   /** Build the source for one stream the server reports as pending. */
   sourceFor: (stream: PendingStream) => ShapeSource<V>;
-  /** Belief store to project into. MUST be created with `{ history: true }`. */
-  store: Store<G>;
+  /** Belief store to project into. `HistoryStore`, so `{ history: true }` is enforced at the call site. */
+  store: HistoryStore<G>;
   checkpoints: CheckpointBook;
   project: Projector<G, V>;
   /** Transaction-size bound, forwarded to {@link consume}. */

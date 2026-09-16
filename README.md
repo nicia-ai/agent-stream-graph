@@ -625,8 +625,12 @@ legitimate no-op). It completes a write intent (`writes.total === 1`) but
 captures nothing (`recorded === undefined`), so its offset carries the prior
 anchor forward: `anchorFor(offset)` reconstructs the same belief as the previous
 offset and re-delivery stays a no-op. When that no-op `delete` is the very first
-change (empty graph, no prior anchor), the checkpoint is skipped so re-delivery
-re-processes.
+change on a graph with no recorded history at all, there is no prior anchor to
+carry: the batch calls TypeGraph's `tx.requestRecordedRevision()`, which
+allocates a recorded revision for a transaction that changes no entity, so the
+offset still checkpoints against an instant its own commit minted. The request is
+made only when an anchor is genuinely missing, so a replay over an
+already-populated graph still burns no revision.
 
 Create belief stores with `coalesceUnchangedUpserts: true`: a re-delivered
 byte-identical row then coalesces to a true no-op (same `writes.total === 1`,
@@ -765,8 +769,9 @@ inside a caller-owned transaction that the belief projection (via
 | --- | --- |
 | `consume(args)` | Resumable, idempotent, checkpointing consumer (at-least-once). |
 | `ShapeSource<V>`, `mockShapeSource<V>`, `electricShapeSource<V>`, `durableStreamSource<V>`, `durableStateSource<V>` | The transport seam (value type `V` defaults to `Record<string, unknown>`). |
-| `Projector<G, V>` | `(store, change) => Promise<void>` over graph `G` — must be idempotent. |
+| `Projector<G, V>` | `(tx, change) => Promise<void>` over graph `G` — must be idempotent. `tx` also carries TypeGraph's transaction-bound reads (`query`, `neighbors`, `countNeighbors`, `subgraph`, `batchOnce`), so a read-modify-write projector sees its own earlier writes. |
 | `ProjectorRecordedNothingError` | Thrown when an insert/update change records no write. |
+| `BeliefStoreNotHistoryEnabledError` | Thrown when the belief store lacks `{ history: true }`. TypeScript callers are rejected at the call site, `consume` taking a `HistoryStore<G>`. |
 | `CheckpointBook`, `typeGraphCheckpoints`, `checkpointGraph` | Portable durable offset ↔ anchor bookkeeping. `record` opens its own transaction; `lastOffset` is an O(1) per-stream high-water read. |
 | `AdoptingCheckpointBook`, `typeGraphAdoptingCheckpoints` | Additive exactly-once API. `recordIn(externalTx, …)` enlists the checkpoint write in a caller-owned adapter transaction. |
 | `compareOffsets`, `composeOffset`, `parseCompositeOffset` | Offset ordering across numeric-tuple, opaque, and composite `<base>,<n>` forms. |

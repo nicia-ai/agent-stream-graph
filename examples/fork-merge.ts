@@ -46,7 +46,7 @@ import {
   type ShapeSource,
 } from "../src";
 import { startDurableStreamsServer } from "../test/support/durable-streams-server";
-import { type DemoStore, makeBackend, newStore, runAsMain } from "./_support";
+import { type DemoHistoryStore, type DemoStore, makeBackend, newStore, runAsMain } from "./_support";
 
 // ============================================================
 // What the agents are researching
@@ -71,6 +71,9 @@ const researchGraph = defineGraph({
   edges: {},
 });
 type ResearchStore = DemoStore<typeof researchGraph>;
+// The half of {@link ResearchStore} `consume` can project into: a belief graph
+// needs recorded history for its offsets to carry replayable anchors.
+type ResearchBelief = DemoHistoryStore<typeof researchGraph>;
 
 type Note = Readonly<{ key: string; claim: string; topic: string; confidence: string }>;
 
@@ -111,7 +114,7 @@ const project: Projector<typeof researchGraph, Note> = async (tx, change) => {
 
 async function materialize(
   source: ShapeSource<Note>,
-  belief: ResearchStore,
+  belief: ResearchBelief,
   checkpoints: CheckpointBook,
 ): Promise<string> {
   const result = await consume({ source, store: belief, checkpoints, project });

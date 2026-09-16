@@ -97,7 +97,8 @@ async function consumeExactlyOnce(args: ExactlyOnceArgs): Promise<{ processed: n
   // Carry-forward anchor for a no-op change (delete of an absent key, or a
   // coalesced re-delivery) whose transaction captured nothing. The one anchor
   // sourced from `recordedNow()` rather than a receipt: exact only under one
-  // consumer per belief store (a concurrent writer could advance this clock).
+  // consumer per belief store (a concurrent writer could advance this clock),
+  // and `undefined` until the graph has any recorded history at all.
   let anchor: RecordedInstant | undefined = await args.belief.recordedNow();
 
   for (let index = 0; index < changes.length; index += 1) {
@@ -113,6 +114,13 @@ async function consumeExactlyOnce(args: ExactlyOnceArgs): Promise<{ processed: n
       // The belief store is history-enabled, so it adopts `db` via the recorded
       // path and hands back a receipt.
       const { receipt } = await args.belief.withRecordedTransaction(args.db, async (tx) => {
+        // On a graph with no recorded history yet, a change that captures
+        // nothing would leave the cursor with no anchor to record. Requesting a
+        // revision makes the commit mint one anyway; it is idempotent and merges
+        // into the revision a writing change allocates, and asking only when an
+        // anchor is missing keeps a replay from churning history. Same rule as
+        // `consume()`.
+        if (anchor === undefined) tx.requestRecordedRevision();
         await args.project(tx, change);
       });
       if (receipt.writes.total === 0 && change.operation !== "delete") {

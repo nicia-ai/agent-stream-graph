@@ -6,7 +6,7 @@ import {
   defineNode,
   getEdgeKinds,
   getNodeKinds,
-  type Store,
+  type HistoryStore,
 } from "@nicia-ai/typegraph";
 import { createLocalSqliteBackend } from "@nicia-ai/typegraph/adapters/drizzle/sqlite/local";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -44,7 +44,7 @@ const intelGraph = defineGraph({
     rates: { type: rates, from: [Person], to: [Company] },
   },
 });
-type IntelStore = Store<typeof intelGraph>;
+type IntelStore = HistoryStore<typeof intelGraph>;
 
 type Row = Readonly<{
   name?: string;
@@ -646,7 +646,7 @@ describe("graph events", () => {
     const acme = { kind: "Company", id: "c1" } as const;
     const globex = { kind: "Company", id: "c2" } as const;
 
-    let belief: Store<typeof soleGraph>;
+    let belief: HistoryStore<typeof soleGraph>;
 
     beforeEach(async () => {
       [belief] = await createStoreWithSchema(soleGraph, createLocalSqliteBackend().backend, {
