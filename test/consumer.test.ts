@@ -904,6 +904,20 @@ describe("consume", () => {
     expect(await book.anchorFor("test", "001")).toBe(instant(1));
     expect(await book.anchorFor("test", "050")).toBe(instant(50));
   });
+
+  it("never regresses the high-water under concurrent records on one stream", async () => {
+    // Without one transaction per record, both calls read the Stream row before
+    // either writes it, and whichever upsert lands last wins — here the older
+    // offset, pulling the cursor backwards.
+    await Promise.all([
+      book.record("test", "002", instant(2)),
+      book.record("test", "001", instant(1)),
+    ]);
+
+    expect(await book.lastOffset("test")).toBe("002");
+    expect(await book.anchorFor("test", "001")).toBe(instant(1));
+    expect(await book.anchorFor("test", "002")).toBe(instant(2));
+  });
 });
 
 describe("consume with coalesceUnchangedUpserts (replay churn)", () => {
