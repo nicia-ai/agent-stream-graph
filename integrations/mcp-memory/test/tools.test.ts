@@ -2,12 +2,21 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { consume, mockShapeSource } from "@nicia-ai/agent-stream-graph";
 import { createRetractionCapability } from "@nicia-ai/typegraph/provenance";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { BACKGROUND_SCAN_SOURCE, ID_CHECK_SOURCE, JANE_EMAIL, STREAM_CRM, STREAM_LINKEDIN } from "../src/fixtures.js";
+import {
+  BACKGROUND_SCAN_SOURCE,
+  ID_CHECK_SOURCE,
+  JANE_EMAIL,
+  STREAM_CRM,
+  STREAM_LINKEDIN,
+  STREAM_VERIFICATION,
+  VERIFICATION_CHANGES,
+} from "../src/fixtures.js";
 import { retractionConfig, VERIFIED_PREDICATE } from "../src/graph.js";
-import { openMemoryStore, type OpenMemoryStoreResult } from "../src/store.js";
+import { openMemoryStore, projectVerification, type OpenMemoryStoreResult } from "../src/store.js";
 import { believedAt, recall, whySoFar } from "../src/tools.js";
 
 describe("memory tools", () => {
@@ -59,6 +68,29 @@ describe("memory tools", () => {
       expect(byEmail.entity.id).toBe(byName.entity.id);
     });
 
+    it("matches the stable key case- and whitespace-insensitively", async () => {
+      const result = await recall(memory.store, `  ${JANE_EMAIL.toUpperCase()} `);
+      expect(result.found).toBe(true);
+      if (!result.found) return;
+      expect(result.entity.id).toBe(JANE_EMAIL);
+    });
+
+    it("reports the employer the person resolves to", async () => {
+      const result = await recall(memory.store, "J. Doe");
+      expect(result.found).toBe(true);
+      if (!result.found) return;
+      expect(result.employer).toBe("Acme Corp");
+    });
+
+    it("resolves an organization by domain and by name", async () => {
+      const byDomain = await recall(memory.store, "ACME.example");
+      const byName = await recall(memory.store, "Acme Corp");
+      expect(byDomain.found && byName.found).toBe(true);
+      if (!byDomain.found || !byName.found) return;
+      expect(byDomain.entity).toMatchObject({ kind: "Org", id: "acme.example" });
+      expect(byName.entity.id).toBe(byDomain.entity.id);
+    });
+
     it("reports not found for an unknown handle", async () => {
       const result = await recall(memory.store, "nobody@example.invalid");
       expect(result.found).toBe(false);
@@ -102,13 +134,19 @@ describe("memory tools", () => {
 
       await provenance.retract({ kind: "Source", id: ID_CHECK_SOURCE });
       const afterOne = await whySoFar(memory.store, JANE_EMAIL, VERIFIED_PREDICATE);
-      expect(afterOne.found && afterOne.currentlyHeld).toBe(true);
+      expect(afterOne.found).toBe(true);
+      if (!afterOne.found) return;
+      expect(afterOne.currentlyHeld).toBe(true);
+      expect(afterOne.supportedBy.filter((s) => s.retracted).map((s) => s.sourceId)).toEqual([ID_CHECK_SOURCE]);
 
       await provenance.retract({ kind: "Source", id: BACKGROUND_SCAN_SOURCE });
       const afterBoth = await whySoFar(memory.store, JANE_EMAIL, VERIFIED_PREDICATE);
       expect(afterBoth.found).toBe(true);
       if (!afterBoth.found) return;
       expect(afterBoth.currentlyHeld).toBe(false);
+      // Provenance must outlive the fact: a no-longer-held fact still names the
+      // retracted sources that once supported it, rather than an empty list.
+      expect(afterBoth.supportedBy).toHaveLength(2);
       expect(afterBoth.supportedBy.every((s) => s.retracted)).toBe(true);
 
       // Restore state so this test does not leak into others in the file.
@@ -116,6 +154,26 @@ describe("memory tools", () => {
         { kind: "Source", id: ID_CHECK_SOURCE },
         { kind: "Source", id: BACKGROUND_SCAN_SOURCE },
       ]);
+    });
+
+    it("keeps a retracted source retracted when it reports again", async () => {
+      const provenance = createRetractionCapability(memory.store, retractionConfig);
+      await provenance.retract({ kind: "Source", id: ID_CHECK_SOURCE });
+
+      const idCheckAgain = VERIFICATION_CHANGES.find((change) => change.key === ID_CHECK_SOURCE)!;
+      await consume({
+        source: mockShapeSource(STREAM_VERIFICATION, [{ ...idCheckAgain, offset: "003" }]),
+        store: memory.store,
+        checkpoints: memory.book,
+        project: projectVerification,
+      });
+
+      const result = await whySoFar(memory.store, JANE_EMAIL, VERIFIED_PREDICATE);
+      expect(result.found).toBe(true);
+      if (!result.found) return;
+      expect(result.supportedBy.find((s) => s.sourceId === ID_CHECK_SOURCE)?.retracted).toBe(true);
+
+      await provenance.unRetract({ kind: "Source", id: ID_CHECK_SOURCE });
     });
 
     it("reports found: false for an entity that does not resolve", async () => {

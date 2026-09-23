@@ -21,39 +21,38 @@ export type OrgSnapshot = Readonly<{ kind: "Org"; id: string; name: string; doma
 export type ResolvedEntity = PersonSnapshot | OrgSnapshot;
 
 /**
- * The resolution ladder both `Person` and `Org` climb: an exact id, a
- * caller-supplied stable key (email/domain, case-insensitively), an exact
- * display name, or a spelling folded into `aliases`.
- */
-function matchesHandle(candidate: { id: string; name: string; aliases: readonly string[] }, stableKey: string, trimmed: string, lower: string): boolean {
-  return candidate.id === lower || stableKey.toLowerCase() === lower || candidate.name === trimmed || candidate.aliases.includes(trimmed);
-}
-
-/**
  * Entity resolution: given ANY handle a source has used for an entity — its
- * id, its stable key (email/domain), or one of the name spellings folded
- * into `aliases` by the projector in `store.ts` — returns the one canonical
- * row. This is what lets `recall("J. Doe")` and `recall("Jane Doe")` answer
- * with the same person.
+ * stable key (email/domain), its display name, or one of the name spellings
+ * folded into `aliases` by the projector in `store.ts` — returns the one
+ * canonical row. This is what lets `recall("J. Doe")` and `recall("Jane Doe")`
+ * answer with the same person.
+ *
+ * The stable key needs no rung of its own: `personId`/`orgId` derive the id
+ * from it, trimmed and lowercased, so matching the id against the normalized
+ * handle IS the case-insensitive email/domain match.
  */
 async function resolveEntity(store: MemoryStore, handle: string): Promise<ResolvedEntity | undefined> {
   const trimmed = handle.trim();
-  const lower = trimmed.toLowerCase();
+  const normalizedKey = trimmed.toLowerCase();
 
-  const people = await store
+  const [person] = await store
     .query()
     .from("Person", "p")
+    .whereNode("p", (p) => p.id.eq(normalizedKey).or(p.name.eq(trimmed)).or(p.aliases.contains(trimmed)))
     .select((c) => ({ id: c.p.id, name: c.p.name, email: c.p.email, title: c.p.title, aliases: c.p.aliases }))
+    .orderBy("p", "id")
+    .limit(1)
     .execute();
-  const person = people.find((p) => matchesHandle(p, p.email, trimmed, lower));
   if (person !== undefined) return { kind: "Person", ...person };
 
-  const orgs = await store
+  const [org] = await store
     .query()
     .from("Org", "o")
+    .whereNode("o", (o) => o.id.eq(normalizedKey).or(o.name.eq(trimmed)).or(o.aliases.contains(trimmed)))
     .select((c) => ({ id: c.o.id, name: c.o.name, domain: c.o.domain, aliases: c.o.aliases }))
+    .orderBy("o", "id")
+    .limit(1)
     .execute();
-  const org = orgs.find((o) => matchesHandle(o, o.domain, trimmed, lower));
   if (org !== undefined) return { kind: "Org", ...org };
 
   return undefined;
@@ -70,14 +69,17 @@ export async function recall(store: MemoryStore, handle: string): Promise<Recall
   if (entity === undefined) return { found: false, handle };
   if (entity.kind === "Org") return { found: true, entity, verified: false };
 
-  const employment = await store
+  const [employment] = await store
     .query()
     .from("Person", "p")
+    .whereNode("p", (p) => p.id.eq(entity.id))
     .traverse("worksAt", "w")
     .to("Org", "o")
-    .select((c) => ({ personId: c.p.id, orgName: c.o.name }))
+    .select((c) => ({ orgName: c.o.name }))
+    .orderBy("o", "id")
+    .limit(1)
     .execute();
-  const employer = employment.find((e) => e.personId === entity.id)?.orgName;
+  const employer = employment?.orgName;
 
   const fact = await store.nodes.Fact.getById(asNodeId(factId(entity.id, VERIFIED_PREDICATE)));
 
@@ -122,11 +124,11 @@ export type WhySoFarResult =
   | Readonly<{ found: false; entity: string; predicate: string }>;
 
 /** Provenance: walks Source --premiseOf--> Justification --derives--> Fact
- * backward from the fact `{entity, predicate}` names, reporting every
- * source that justifies it and whether that source has been retracted. A
- * fact with no live (non-retracted) support is no longer held —
- * `currentlyHeld` reflects that directly, since a fully-unsupported fact is
- * soft-deleted by the retraction capability and `getById` stops finding it. */
+ * to the fact `{entity, predicate}` names, reporting every source that
+ * justifies it and whether that source has been retracted — including after
+ * the fact itself is no longer held. `currentlyHeld` comes from `getById`,
+ * which stops finding a fully-unsupported fact once the retraction
+ * capability soft-deletes it. */
 export async function whySoFar(store: MemoryStore, entity: string, predicate: string): Promise<WhySoFarResult> {
   const resolved = await resolveEntity(store, entity);
   if (resolved === undefined || resolved.kind !== "Person") return { found: false, entity, predicate };
@@ -134,25 +136,21 @@ export async function whySoFar(store: MemoryStore, entity: string, predicate: st
   const targetFactId = factId(resolved.id, predicate);
   const currentFact = await store.nodes.Fact.getById(asNodeId(targetFactId));
 
-  const derivations = await store
-    .query()
-    .from("Justification", "j")
-    .traverse("derives", "d")
-    .to("Fact", "f")
-    .select((c) => ({ justificationId: c.j.id, factId: c.f.id }))
-    .execute();
-  const relevantJustificationIds = new Set(derivations.filter((d) => d.factId === targetFactId).map((d) => d.justificationId));
-
-  const premises = await store
+  // Read through tombstones: once every supporting source is retracted, the
+  // retraction capability soft-deletes the fact, and a current-mode traversal
+  // into it finds nothing — erasing the explanation exactly when it matters.
+  const supportedBy = await store
+    .view({ mode: "includeTombstones" })
     .query()
     .from("Source", "s")
     .traverse("premiseOf", "p")
     .to("Justification", "j")
-    .select((c) => ({ sourceId: c.s.id, label: c.s.label, retracted: c.s.retracted, justificationId: c.j.id }))
+    .traverse("derives", "d")
+    .to("Fact", "f")
+    .whereNode("f", (f) => f.id.eq(targetFactId))
+    .select((c) => ({ sourceId: c.s.id, label: c.s.label, retracted: c.s.retracted }))
+    .orderBy("s", "id")
     .execute();
-  const supportedBy = premises
-    .filter((p) => relevantJustificationIds.has(p.justificationId))
-    .map((p) => ({ sourceId: p.sourceId, label: p.label, retracted: p.retracted }));
 
   return {
     found: true,
