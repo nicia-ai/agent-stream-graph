@@ -13,15 +13,15 @@
   "dependencies": {
     "@electric-sql/client": "^1.5.28",
     "@nicia-ai/agent-stream-graph": "workspace:*",
-    "@nicia-ai/typegraph": "0.63.0",
-    "drizzle-orm": "0.45.2",
+    "@nicia-ai/typegraph": "0.68.1",
+    "drizzle-orm": "0.45.3",
     "pg": "^8.23.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }
