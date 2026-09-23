@@ -215,7 +215,8 @@ pnpm demo
 
 That demo starts with Electric Deep Survey-shaped shared state (`wiki` rows and
 `xrefs`), then projects the rows into TypeGraph so repeated semantic mentions
-collapse to canonical concepts with source attribution. Concept **extraction**
+collapse to canonical concepts with source attribution, and each xref becomes a
+`crossReferences` edge between the two pages it links. Concept **extraction**
 uses substring alias matching; entity **resolution** (merging entry-scoped
 concepts into canonical ones) uses TypeGraph's fulltext similarity.
 

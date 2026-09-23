@@ -1,6 +1,7 @@
 // Shared boilerplate for the runnable demos in this directory. Not a demo
 // itself (underscore-prefixed) — `pnpm demo*` never targets it.
 import { pathToFileURL } from "node:url";
+import { inspect, isDeepStrictEqual } from "node:util";
 
 import { type AdapterBackend, type AdapterHistoryStore, type AdapterStore, createAdapterStoreWithSchema, type GraphDef } from "@nicia-ai/typegraph";
 import { type AnySqliteDatabase, createLocalSqliteBackend } from "@nicia-ai/typegraph/adapters/drizzle/sqlite/local";
@@ -66,6 +67,39 @@ export async function newStore<G extends GraphDef>(
     coalesceUnchangedUpserts,
   });
   return store;
+}
+
+/** The horizontal rule every demo frames its title, sections and punchline with. */
+export const RULE = "━".repeat(74);
+
+/** Print a section heading between two rules. */
+export function section(title: string): void {
+  console.log(`\n${RULE}\n ${title}\n${RULE}`);
+}
+
+/**
+ * Throw unless `actual` deep-equals `expected`. A demo's claims are asserted,
+ * not just printed: a regression must fail `pnpm demo:all`, not narrate a
+ * success that did not happen.
+ */
+export function assertEqual<T>(actual: T, expected: T, what: string): void {
+  if (!isDeepStrictEqual(actual, expected)) {
+    throw new Error(`${what}: expected ${inspect(expected)}, got ${inspect(actual)}`);
+  }
+}
+
+/** Await `work`, returning the `errorClass` rejection it must produce. Any other outcome throws. */
+export async function expectRejection<E extends Error>(
+  work: Promise<unknown>,
+  errorClass: new (...args: never[]) => E,
+): Promise<E> {
+  try {
+    await work;
+  } catch (error) {
+    if (error instanceof errorClass) return error;
+    throw error;
+  }
+  throw new Error(`expected ${errorClass.name}, but nothing was thrown`);
 }
 
 /** Run `main()` when this module is the process entry point; exit non-zero on error. */

@@ -1,43 +1,37 @@
 /**
- * Demo — Electric durable streams → per-agent belief graphs → entity-resolved
- * canonical, built on @nicia-ai/agent-stream-graph.
+ * Demo — the whole pipeline end to end: two agents' change streams → a durable,
+ * resumable consumer → one bitemporal belief graph PER AGENT → a single
+ * entity-resolved canonical graph.
  *
- *   (a) A durable, resumable consumer over shape changes: it checkpoints the
- *       last offset and the recorded-time anchor per message, so a crashed
- *       materializer restarts from where it left off and at-least-once
- *       re-delivery is idempotent.
- *
- *   (b) A persistent, history-enabled belief graph PER AGENT. Each agent's
- *       stream builds its own bitemporal view, so you can ask what THAT agent
- *       believed at any of its offsets — and see two agents hold different
- *       beliefs about the same entity until they are merged.
+ *   (a) The raw stream timelines each agent emits.
+ *   (b) Crash-safe consumption: each offset is checkpointed with the recorded
+ *       instant it committed at, so a restart resumes from the cursor and
+ *       at-least-once re-delivery converges instead of duplicating.
+ *   (c) Per-agent time travel: what did THAT agent believe at a given offset?
+ *   (d) Entity resolution: merge the beliefs into canonical — aliases collapse,
+ *       disagreements are flagged, and provenance traces each canonical entity
+ *       back to the stream offsets behind it.
  *
  * The transport is a `mockShapeSource`; `electricShapeSource` is the drop-in.
- * Run with:  pnpm demo
+ * Run with:  pnpm demo:mechanics
  */
-import {
-  createStoreWithSchema,
-  defineEdge,
-  defineGraph,
-  defineNode,
-  searchable,
-  type RecordedInstant,
-  recordedInstantRevision,
-} from "@nicia-ai/typegraph";
+import { defineEdge, defineGraph, defineNode, searchable, type RecordedInstant, type Store } from "@nicia-ai/typegraph";
 import {
   asBranchId,
   ingestionBranch,
   isOk,
   mergeIncremental,
   openProvenanceStore,
-  readProvenance,
   type PropertyConflict,
+  type ProvenanceGraph,
+  readProvenance,
   unwrap,
 } from "@nicia-ai/typegraph/graph-merge";
 import { exportGraphStream, importGraphStream } from "@nicia-ai/typegraph/interchange";
 import { z } from "zod";
 
 import {
+  type CheckpointBook,
   checkpointGraph,
   consume,
   type Decoder,
@@ -47,7 +41,7 @@ import {
   type Projector,
   type ShapeChange,
 } from "../src";
-import { type DemoStore, makeBackend, newStore, runAsMain } from "./_support";
+import { type DemoHistoryStore, type DemoStore, makeBackend, newStore, runAsMain, section } from "./_support";
 
 // ============================================================
 // The entity graph each agent materializes into
@@ -83,19 +77,16 @@ const intelGraph = defineGraph({
   },
   edges: { worksAt: { type: worksAt, from: [Person], to: [Company] } },
 });
-// The union: this alias spans both the non-history fork point and the
-// history-enabled belief/canonical stores, so it names only what they share.
+// Spans the non-history fork point and the history-enabled belief/canonical
+// stores, so it names only what they share.
 type IntelStore = DemoStore<typeof intelGraph>;
+type IntelBelief = DemoHistoryStore<typeof intelGraph>;
 
 // ============================================================
-// Two agents observing the same world through different eyes.
+// Two agents observing the same world through different eyes
 // ============================================================
 
-/**
- * The row shape these agents' streams carry. Typing it is what removes the
- * `as string` casts a decoder would otherwise need — `ShapeChange<V>` has
- * always supported this; the value type just defaults to `Record<string, unknown>`.
- */
+/** The row shape these streams carry; typing it spares the decoder `as string` casts. */
 type IntelRow = Readonly<{
   name?: string;
   email?: string;
@@ -123,13 +114,17 @@ const SUPPORT_CHANGES: readonly ShapeChange<IntelRow>[] = [
   { offset: "005", shape: "company", key: "y3", operation: "delete", value: {} },
 ];
 
-const STREAM_CHANGES: Record<string, readonly ShapeChange<IntelRow>[]> = {
-  "sales-bot": SALES_CHANGES,
-  "support-bot": SUPPORT_CHANGES,
-};
-
 const SALES_BOT = mockShapeSource("sales-bot", SALES_CHANGES);
 const SUPPORT_BOT = mockShapeSource("support-bot", SUPPORT_CHANGES);
+
+/** Each stream's changes by name, so provenance can cite the offsets behind a canonical entity. */
+const STREAM_CHANGES: Readonly<Record<string, readonly ShapeChange<IntelRow>[]>> = {
+  [SALES_BOT.name]: SALES_CHANGES,
+  [SUPPORT_BOT.name]: SUPPORT_CHANGES,
+};
+
+/** How many sales-bot changes the first consumer run applies before it "crashes". */
+const CRASH_AFTER = 2;
 
 // ============================================================
 // Idempotent projection: decode one shape change into graph events
@@ -180,29 +175,19 @@ async function mergeBeliefInto(
   belief: IntelStore,
 ): Promise<{ anchor: RecordedInstant; conflicts: readonly PropertyConflict<typeof intelGraph>[] }> {
   const branchId = asBranchId(agentId);
-  // An INGESTION branch, not an ordinary one: an agent's belief is untrusted
-  // input, and its rows routinely ALIAS what canonical already holds — the same
-  // person under a different id, which is exactly what the merge below exists to
-  // reconcile. An ordinary branch inherits the fork point's node uniqueness
-  // constraints and would reject such a row at staging, before merge planning
-  // ever saw it. An ingestion branch defers node uniqueness to the resolved
-  // write set instead. (This fork point starts empty, so nothing collides here
-  // yet; a canonical that has been merged into for a while is the case that
-  // needs it.)
+  // An INGESTION branch, not a plain `branch()`: an agent's belief routinely
+  // ALIASES canonical rows (same email, different id) — exactly what the merge
+  // exists to reconcile — and a plain branch enforces the fork point's node
+  // uniqueness at staging, rejecting the alias before merge planning sees it.
+  // This fork point is empty, so nothing collides yet; a populated canonical
+  // is the case that needs it.
   const agentBranch = unwrap(await ingestionBranch(forkPoint, makeBackend, { id: branchId }));
-
-  // The branch holds its own native backend handle; close it once the merge has
-  // consumed it, so a looped/long-lived caller does not leak one per wave.
   try {
-    // Bulk-copy the agent's belief into the merge branch through streaming
-    // interchange: bounded chunks (nodes before edges, so endpoint validation
-    // resolves), ids preserved so provenance can attribute a merged entity back
-    // to the source row, and no graph-sized value held in memory.
-    // `includeTemporal` carries the belief's valid-time window across, so the
-    // branch does not re-stamp every fact with the copy's own wall clock.
-    // Soft-deleted rows stay behind (`includeDeleted` defaults false) — a
-    // retracted sighting must not resurface in the canonical merge. The import
-    // targets the opaque handle directly; it never sees the branch's Store.
+    // Streaming interchange copies the belief in bounded chunks, nodes before
+    // edges, with ids preserved so provenance can attribute a merged entity to
+    // its source row. `includeTemporal` keeps each fact's valid-time window
+    // instead of re-stamping it with the copy's wall clock; soft-deleted rows
+    // stay behind, so a retracted sighting cannot resurface in canonical.
     await importGraphStream(agentBranch, exportGraphStream(belief, { includeTemporal: true }), {
       onConflict: "update",
     });
@@ -258,7 +243,7 @@ async function companyRows(view: IntelView): Promise<readonly CompanyRow[]> {
     .execute();
 }
 
-async function describePerson(view: IntelView): Promise<string> {
+async function describePeople(view: IntelView): Promise<string> {
   const rows = await personRows(view);
   return rows.map((row) => `${row.name} (${row.title})`).join(", ") || "—";
 }
@@ -269,7 +254,7 @@ async function describeCompanies(view: IntelView): Promise<string> {
 }
 
 async function describeBelief(view: IntelView): Promise<string> {
-  return `people: ${await describePerson(view)} | companies: ${await describeCompanies(view)}`;
+  return `people: ${await describePeople(view)} | companies: ${await describeCompanies(view)}`;
 }
 
 async function employmentCount(view: IntelView): Promise<number> {
@@ -283,200 +268,161 @@ async function employmentCount(view: IntelView): Promise<number> {
   return links.length;
 }
 
-async function entityCounts(view: IntelView): Promise<string> {
-  const people = await personRows(view);
-  const companies = await companyRows(view);
-  return `${people.length} person, ${companies.length} ${companies.length === 1 ? "company" : "companies"}`;
+type EntityCounts = Readonly<{ people: number; companies: number }>;
+
+async function entityCounts(view: IntelView): Promise<EntityCounts> {
+  return { people: (await personRows(view)).length, companies: (await companyRows(view)).length };
+}
+
+function formatCounts({ people, companies }: EntityCounts): string {
+  return `${people} ${people === 1 ? "person" : "people"}, ${companies} ${companies === 1 ? "company" : "companies"}`;
 }
 
 function formatValue(value: unknown): string {
   return typeof value === "string" ? `"${value}"` : JSON.stringify(value);
 }
 
-function branchLabel(branchId: string): string {
-  return branchId === "__committed_target__" ? "canonical before this wave" : branchId;
-}
-
+// Every wave here merges one branch against what canonical already holds, so
+// `values` carries only the incoming branch's side; the kept value is `resolution`.
 function describeConflict(conflict: PropertyConflict<typeof intelGraph>): string {
-  const values = conflict.values
-    .map((entry) => `${branchLabel(entry.branchId)}=${formatValue(entry.value)}`)
-    .join(", ");
-  return `${conflict.kind}.${conflict.property} on ${conflict.entityId}: ${values}; kept ${formatValue(conflict.resolution)}`;
+  const incoming = conflict.values.map((entry) => `${entry.branchId}=${formatValue(entry.value)}`).join(", ");
+  return `${conflict.kind}.${conflict.property} on ${conflict.entityId}: ${incoming}; kept ${formatValue(conflict.resolution)}`;
 }
 
 function describeChange(change: ShapeChange<IntelRow>): string {
-  const value = change.value;
-  if (change.operation === "delete") return `@${change.offset} delete ${change.shape} ${change.key}`;
-  switch (change.shape) {
+  const { offset, operation, shape, key, value } = change;
+  if (operation === "delete") return `@${offset} delete ${shape} ${key}`;
+  switch (shape) {
     case "person":
-      return `@${change.offset} ${change.operation} person ${value.name as string} <${value.email as string}> (${value.title as string})`;
+      return `@${offset} ${operation} person ${value.name} <${value.email}> (${value.title})`;
     case "company":
-      return `@${change.offset} ${change.operation} company ${value.name as string} (${value.stage as string})`;
+      return `@${offset} ${operation} company ${value.name} (${value.stage})`;
     case "employment":
-      return `@${change.offset} ${change.operation} employment ${(value.person as string)} works-at ${(value.company as string)}`;
+      return `@${offset} ${operation} employment ${value.person} works-at ${value.company}`;
     default:
-      return `@${change.offset} ${change.operation} ${change.shape} ${change.key}`;
+      return `@${offset} ${operation} ${shape} ${key}`;
   }
 }
 
 function printStreamTimeline(name: string, changes: readonly ShapeChange<IntelRow>[]): void {
   console.log(`\n  ${name}`);
-  for (const change of changes) {
-    console.log(`    ${describeChange(change)}`);
+  for (const change of changes) console.log(`    ${describeChange(change)}`);
+}
+
+async function printSources(provenanceStore: Store<ProvenanceGraph>, canonicalId: string): Promise<void> {
+  const rows = await readProvenance(provenanceStore, { canonicalId, role: "node" });
+  // Only agent streams: the synthetic `__committed_base__` rows mean "already
+  // existed", not an author.
+  for (const row of rows) {
+    const changes = STREAM_CHANGES[row.branchId];
+    if (changes === undefined) continue;
+    const offsets = changes.filter((change) => change.key === row.sourceId).map((change) => change.offset);
+    console.log(`      ${row.branchId} source ${row.sourceId} @ offsets ${offsets.join(", ")}`);
   }
 }
 
-function sourceOffsets(branchId: string, sourceId: string): string {
-  const offsets = STREAM_CHANGES[branchId]?.filter((change) => change.key === sourceId).map((change) => change.offset) ?? [];
-  return offsets.length === 0 ? "not in this demo stream" : offsets.join(", ");
+/** Replay `belief` as it stood when `stream` checkpointed `offset`. */
+async function describeBeliefAt(belief: IntelBelief, book: CheckpointBook, stream: string, offset: string): Promise<string> {
+  const anchor = await book.anchorFor(stream, offset);
+  if (anchor === undefined) throw new Error(`no checkpointed anchor for ${stream} @ ${offset}`);
+  return describeBelief(belief.asOfRecorded(anchor));
 }
 
 export async function main(): Promise<void> {
-  const rule = "━".repeat(74);
-  console.log(rule);
-  console.log(" Electric durable streams → per-agent belief + entity-resolved canonical");
-  console.log(rule);
+  section("Electric durable streams → per-agent belief + entity-resolved canonical");
 
-  const [cursorStore] = await createStoreWithSchema(checkpointGraph, await makeBackend());
+  const cursorStore = await newStore(checkpointGraph);
   const book = typeGraphCheckpoints(cursorStore);
-
   const salesBelief = await newStore(intelGraph, true);
   const supportBelief = await newStore(intelGraph, true);
-  // A cleanup list spanning belief, checkpoint, and merge stores — closing is
-  // the only thing asked of it, so it names only that.
-  const stores: Pick<IntelStore, "close">[] = [salesBelief, supportBelief, cursorStore];
+  const forkPoint = await newStore(intelGraph, false);
+  const canonical = await newStore(intelGraph, true);
+  const stores: { close: () => Promise<void> }[] = [cursorStore, salesBelief, supportBelief, forkPoint, canonical];
 
   try {
-    // ----------------------------------------------------------
-    // (a) Raw stream timelines
-    // ----------------------------------------------------------
-    console.log("\n" + rule);
-    console.log(" (a) Stream timelines — durable observations before graph materialization");
-    console.log(rule);
-    printStreamTimeline("sales-bot", SALES_CHANGES);
-    printStreamTimeline("support-bot", SUPPORT_CHANGES);
+    section("(a) Stream timelines — durable observations before graph materialization");
+    printStreamTimeline(SALES_BOT.name, SALES_CHANGES);
+    printStreamTimeline(SUPPORT_BOT.name, SUPPORT_CHANGES);
 
-    // ----------------------------------------------------------
-    // (b) Resumable, crash-safe consumption
-    // ----------------------------------------------------------
-    console.log("\n" + rule);
-    console.log(" (b) Durable consumer — resume from checkpoint, replay safely after crash");
-    console.log(rule);
+    section("(b) Durable consumer — resume from checkpoint, replay safely after crash");
 
-    // Process the sales-bot stream, but "crash" after 2 of 4 messages.
-    const partial = await consume({ source: SALES_BOT, store: salesBelief, checkpoints: book, project, stopAfter: 2 });
+    const partial = await consume({ source: SALES_BOT, store: salesBelief, checkpoints: book, project, stopAfter: CRASH_AFTER });
+    const cursorAtCrash = await book.lastOffset(SALES_BOT.name);
     console.log(`\n  consumer ran, then crashed after ${partial.processed} messages`);
-    console.log(`    durable cursor: last offset = ${await book.lastOffset("sales-bot")}`);
-    console.log(`    sales-bot belief so far: ${await entityCounts(salesBelief)}`);
+    console.log(`    durable cursor: last offset = ${cursorAtCrash}`);
+    console.log(`    ${SALES_BOT.name} belief so far: ${formatCounts(await entityCounts(salesBelief))}`);
 
-    // Simulate the nastiest crash window: the projector wrote offset 003, but the
-    // checkpoint write did not happen. Restart must replay 003 without duplicating.
-    const uncheckpointed = (await SALES_BOT.read(await book.lastOffset("sales-bot")))[0]!;
+    // The nastiest crash window: the next change was projected, but its
+    // checkpoint write never happened. Restart must replay it without duplicating.
+    const [uncheckpointed] = await SALES_BOT.read(cursorAtCrash);
+    if (uncheckpointed === undefined) throw new Error(`${SALES_BOT.name} has no change after ${cursorAtCrash}`);
     await salesBelief.transaction((tx) => project(tx, uncheckpointed));
-    const uncheckpointedAnchor = await salesBelief.recordedNow();
-    console.log(`\n  crash window: projected ${uncheckpointed.offset}, then died before checkpoint`);
-    // The 40-character anchor string is noise here; its revision is the part
-    // that says "the belief moved past the durable cursor".
-    console.log(
-      `    uncheckpointed belief at revision: ${
-        uncheckpointedAnchor === undefined ?
-          "none"
-        : recordedInstantRevision(uncheckpointedAnchor)
-      }`,
-    );
-    console.log(`    durable cursor is still:       ${await book.lastOffset("sales-bot")}`);
+    console.log(`\n  crash window: projected ${uncheckpointed.offset}, then died before checkpointing it`);
+    console.log(`    durable cursor is still:          ${await book.lastOffset(SALES_BOT.name)}`);
     console.log(`    belief already has worksAt edges: ${await employmentCount(salesBelief)}`);
 
-    // Restart: a fresh consumer reads the durable cursor and resumes.
     const resumed = await consume({ source: SALES_BOT, store: salesBelief, checkpoints: book, project });
-    console.log(`\n  restarted — replayed 003, then processed 004 (${resumed.processed} messages)`);
-    console.log(`    sales-bot belief now: ${await entityCounts(salesBelief)} — ${await describePerson(salesBelief)}`);
-    console.log(`    worksAt edges after replay: ${await employmentCount(salesBelief)} (no duplicate edge)`);
+    const edgesAfterReplay = await employmentCount(salesBelief);
+    if (resumed.processed !== SALES_CHANGES.length - CRASH_AFTER) {
+      throw new Error(`resume should re-deliver every change past the cursor; processed ${resumed.processed}`);
+    }
+    if (edgesAfterReplay !== 1) throw new Error(`replaying ${uncheckpointed.offset} duplicated the worksAt edge: ${edgesAfterReplay}`);
+    console.log(`\n  restarted from ${resumed.fromOffset} — replayed ${uncheckpointed.offset}, processed ${resumed.processed} messages`);
+    console.log(`    ${SALES_BOT.name} belief now: ${formatCounts(await entityCounts(salesBelief))} — ${await describePeople(salesBelief)}`);
+    console.log(`    worksAt edges after replay: ${edgesAfterReplay} (no duplicate edge)`);
 
-    // At-least-once: re-run with the cursor at the end — nothing to do, and even
-    // replaying applied rows would upsert (no duplicates).
-    const replay = await consume({ source: SALES_BOT, store: salesBelief, checkpoints: book, project });
-    console.log(`\n  re-run (at-least-once): ${replay.processed} messages processed; belief unchanged: ${await entityCounts(salesBelief)}`);
+    const rerun = await consume({ source: SALES_BOT, store: salesBelief, checkpoints: book, project });
+    if (rerun.processed !== 0) throw new Error(`a caught-up consumer re-applied ${rerun.processed} changes`);
+    console.log(`\n  re-run (at-least-once): ${rerun.processed} messages processed; belief unchanged: ${formatCounts(await entityCounts(salesBelief))}`);
 
-    // Bring the support-bot fully up to date too.
     await consume({ source: SUPPORT_BOT, store: supportBelief, checkpoints: book, project });
 
-    // ----------------------------------------------------------
-    // (c) Per-agent belief, time-travelled by offset
-    // ----------------------------------------------------------
-    console.log("\n" + rule);
-    console.log(" (c) What did each agent believe, at which offset?");
-    console.log(rule);
+    section("(c) What did each agent believe, at which offset?");
 
-    // `anchorFor` returns a branded RecordedInstant — replay needs no cast.
-    const salesAt1 = await book.anchorFor("sales-bot", "001");
-    const salesAt4 = await book.anchorFor("sales-bot", "004");
-    console.log("\n  sales-bot's own belief graph:");
-    console.log(`    @offset 001: ${await describeBelief(salesBelief.asOfRecorded(salesAt1!))}`);
-    console.log(`    @offset 004: ${await describeBelief(salesBelief.asOfRecorded(salesAt4!))}  (title corrected)`);
+    console.log(`\n  ${SALES_BOT.name}'s own belief graph:`);
+    console.log(`    @offset 001: ${await describeBeliefAt(salesBelief, book, SALES_BOT.name, "001")}`);
+    console.log(`    @offset 004: ${await describeBeliefAt(salesBelief, book, SALES_BOT.name, "004")}  (title corrected)`);
 
-    const supportAt4 = await book.anchorFor("support-bot", "004");
-    const supportAt5 = await book.anchorFor("support-bot", "005");
-    console.log("\n  support-bot's own belief graph (same person, different surface form):");
-    console.log(`    @offset 004: ${await describeBelief(supportBelief.asOfRecorded(supportAt4!))}`);
-    console.log(`    @offset 005: ${await describeBelief(supportBelief.asOfRecorded(supportAt5!))}  (Umbrella retracted)`);
+    console.log(`\n  ${SUPPORT_BOT.name}'s own belief graph (same person, different surface form):`);
+    console.log(`    @offset 004: ${await describeBeliefAt(supportBelief, book, SUPPORT_BOT.name, "004")}`);
+    console.log(`    @offset 005: ${await describeBeliefAt(supportBelief, book, SUPPORT_BOT.name, "005")}  (Umbrella retracted)`);
     console.log("\n  → Same email, but neither agent alone knows 'Jane Doe' and 'J. Doe'");
     console.log("    are one person. The retracted company also remains visible in past belief.");
 
-    // ----------------------------------------------------------
-    // Merge the per-agent beliefs into a canonical, entity-resolved graph
-    // ----------------------------------------------------------
-    console.log("\n" + rule);
-    console.log(" Entity resolution — merge the beliefs into one canonical graph");
-    console.log(rule);
+    section("(d) Entity resolution — merge the beliefs into one canonical graph");
 
-    const forkPoint = await newStore(intelGraph, false);
-    const canonical = await newStore(intelGraph, true);
-    stores.push(forkPoint, canonical);
+    const wave1 = await mergeBeliefInto(forkPoint, canonical, SALES_BOT.name, salesBelief);
+    console.log(`\n  [wave 1] merged ${SALES_BOT.name}   — conflicts: ${wave1.conflicts.length}`);
+    const wave2 = await mergeBeliefInto(forkPoint, canonical, SUPPORT_BOT.name, supportBelief);
+    console.log(`  [wave 2] merged ${SUPPORT_BOT.name} — conflicts: ${wave2.conflicts.length}`);
+    for (const conflict of wave2.conflicts) console.log(`    conflict: ${describeConflict(conflict)}`);
 
-    const wave1 = await mergeBeliefInto(forkPoint, canonical, "sales-bot", salesBelief);
-    console.log(`\n  [wave 1] merged sales-bot  — conflicts: ${wave1.conflicts.length}`);
-    const wave2 = await mergeBeliefInto(forkPoint, canonical, "support-bot", supportBelief);
-    console.log(`  [wave 2] merged support-bot — conflicts: ${wave2.conflicts.length}`);
-    for (const conflict of wave2.conflicts) {
-      console.log(`    conflict: ${describeConflict(conflict)}`);
+    // Jane collapses to one person; Acme collapses to one company; Globex is new;
+    // the retracted Umbrella stays out.
+    const merged = await entityCounts(canonical);
+    if (merged.people !== 1 || merged.companies !== 2) {
+      throw new Error(`expected 1 person and 2 companies after entity resolution, got ${formatCounts(merged)}`);
     }
-
-    console.log(`\n  canonical now: ${await entityCounts(canonical)} — ${await describePerson(canonical)}`);
-    const provenanceStore = await openProvenanceStore(canonical);
-    for (const agent of ["sales-bot", "support-bot"]) {
-      const touched = await readProvenance(provenanceStore, { branchId: asBranchId(agent) });
-      console.log(`    provenance — ${agent} contributed to ${touched.length} canonical entities`);
-    }
+    if (wave2.conflicts.length === 0) throw new Error("the agents disagree on names and titles, but no conflict was flagged");
+    console.log(`\n  canonical now: ${formatCounts(merged)} — ${await describePeople(canonical)}`);
 
     console.log("\n  why does canonical believe this?");
+    const provenanceStore = await openProvenanceStore(canonical);
     for (const person of await personRows(canonical)) {
       console.log(`    person ${person.name} <${person.email}>`);
-      const provenance = (await readProvenance(provenanceStore, { canonicalId: person.id, role: "node" })).filter(
-        (row) => STREAM_CHANGES[row.branchId] !== undefined,
-      );
-      for (const row of provenance) {
-        console.log(`      ${branchLabel(row.branchId)} source ${row.sourceId} @ offsets ${sourceOffsets(row.branchId, row.sourceId)}`);
-      }
+      await printSources(provenanceStore, person.id);
     }
     for (const company of await companyRows(canonical)) {
       console.log(`    company ${company.name} <${company.domain}>`);
-      const provenance = (await readProvenance(provenanceStore, { canonicalId: company.id, role: "node" })).filter(
-        (row) => STREAM_CHANGES[row.branchId] !== undefined,
-      );
-      for (const row of provenance) {
-        console.log(`      ${branchLabel(row.branchId)} source ${row.sourceId} @ offsets ${sourceOffsets(row.branchId, row.sourceId)}`);
-      }
+      await printSources(provenanceStore, company.id);
     }
 
     console.log("\n  canonical, time-travelled:");
-    console.log(`    asOfRecorded(after wave 1): ${await entityCounts(canonical.asOfRecorded(wave1.anchor))}`);
-    console.log(`    asOfRecorded(after wave 2): ${await entityCounts(canonical.asOfRecorded(wave2.anchor))}`);
+    console.log(`    asOfRecorded(after wave 1): ${formatCounts(await entityCounts(canonical.asOfRecorded(wave1.anchor)))}`);
+    console.log(`    asOfRecorded(after wave 2): ${formatCounts(await entityCounts(canonical.asOfRecorded(wave2.anchor)))}`);
 
-    console.log("\n" + rule);
-    console.log(" Durable streams → per-agent bitemporal belief → entity-resolved");
-    console.log(" canonical. Resumable, idempotent, and replayable by offset.");
-    console.log(rule + "\n");
+    section("Durable streams → per-agent bitemporal belief → entity-resolved\n canonical. Resumable, idempotent, and replayable by offset.");
+    console.log();
   } finally {
     await Promise.allSettled(stores.map((store) => store.close()));
   }

@@ -3,42 +3,37 @@
  * then prove the resumed run converges to exactly the same graph a clean,
  * uninterrupted run would have produced.
  *
- * Every "crash-safe, idempotent resume" claim in this space gets demonstrated
- * with `stopAfter` — a scripted stop, not a crash. This demo instead forks a
- * REAL child process (`examples/crash-resume-worker.ts`, run through tsx) and
- * sends it a REAL `SIGKILL`: no signal handler, no `finally`, no chance to
- * flush. The belief store and the checkpoint store are therefore file-backed
- * SQLite databases (`createLocalSqliteBackend({ path })`) in a temp directory —
- * an in-memory store would die with the process and prove nothing.
+ * Crash-safety is usually demonstrated with `stopAfter` — a scripted stop, not
+ * a crash. This demo spawns a REAL child process
+ * (`examples/crash-resume-worker.ts`) and sends it a REAL `SIGKILL`: no signal
+ * handler, no `finally`, no chance to flush. Both stores are therefore
+ * file-backed SQLite databases in a temp directory — an in-memory store would
+ * die with the process and prove nothing.
  *
- * The worker is killed at a controlled, non-flaky point: it drains most of the
- * stream normally, then manually commits ONE more change directly to the
+ * The kill lands at a controlled point, never racing work in flight: the worker
+ * drains most of the stream normally, then commits ONE more change to the
  * belief store WITHOUT checkpointing it — the worst-case at-least-once crash
- * window ("the belief moved past the durable cursor"). It signals the parent
- * over a stdout JSON line and hangs; the parent kills it the instant that
- * signal arrives, so the demo never races the kill against work in flight.
+ * window, "the belief moved past the durable cursor" — reports that, and parks.
  *
- * After the kill, this file resumes IN-PROCESS against the same on-disk
- * stores: `consume()` re-delivers the primed change (absorbed as a no-op by
+ * This file then resumes IN-PROCESS against the same on-disk stores:
+ * `consume()` re-delivers the primed change (absorbed as a no-op by
  * `coalesceUnchangedUpserts`, not duplicated) and drains the rest. The result
- * is asserted, field for field, against a clean run over the same stream.
+ * is asserted against a clean run over the same stream.
  *
  * Run with:  pnpm tsx examples/crash-resume.ts
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
-import { recordedInstantRevision } from "@nicia-ai/typegraph";
-
 import { checkpointGraph, consume, mockShapeSource, typeGraphCheckpoints } from "../src";
-import { newStore, runAsMain } from "./_support";
+import { assertEqual, newStore, RULE, runAsMain, section } from "./_support";
 import {
   CHANGES,
+  currentRevision,
   observationGraph,
   openFileBackedStores,
   PRIME_INDEX,
@@ -52,59 +47,50 @@ import {
 const HARD_TIMEOUT_MS = 30_000;
 
 const WORKER_PATH = fileURLToPath(new URL("./crash-resume-worker.ts", import.meta.url));
-const TSX_CLI = createRequire(import.meta.url).resolve("tsx/cli");
+// Run the worker under tsx's loader rather than the `tsx` CLI: the CLI runs the
+// script in a grandchild process, so a SIGKILL sent to it would kill the
+// wrapper and orphan the actual worker.
+const TSX_LOADER = import.meta.resolve("tsx");
 
 type PrimedMessage = Extract<WorkerMessage, { type: "primed" }>;
+type ExitStatus = Readonly<{ code: number | null; signal: NodeJS.Signals | null }>;
 
 /**
- * Spawn the worker through tsx, listen to its stdout protocol, and resolve the
- * instant it reports the crash window is primed. Rejects if the worker dies
- * (or errors) before that — a real bug there should fail loud, not hang the
- * demo waiting for a signal that will never come.
+ * Narrate the worker's stdout protocol until it reports the crash window is
+ * primed. Throws if the worker's stdout closes first — it died before priming,
+ * and waiting would only hang the demo.
  */
-async function primeForCrash(child: ChildProcess): Promise<PrimedMessage> {
-  if (child.stdout === null) {
-    throw new Error("primeForCrash(): worker was not spawned with a piped stdout");
+async function waitUntilPrimed(worker: ChildProcess): Promise<PrimedMessage> {
+  if (worker.stdout === null) throw new Error("waitUntilPrimed(): worker was not spawned with a piped stdout");
+  for await (const line of createInterface({ input: worker.stdout })) {
+    const message = parseWorkerMessage(line);
+    if (message.type === "drained") {
+      console.log(`\n  worker: drained ${message.processed} changes normally — durable cursor at "${message.checkpoint ?? "(none)"}"`);
+      continue;
+    }
+    console.log(`  worker: committed change @${message.offset} to belief, but did NOT checkpoint it`);
+    console.log(`          (durable cursor still at "${message.checkpoint ?? "(none)"}" — this is the crash window)`);
+    return message;
   }
-  const rl = createInterface({ input: child.stdout });
+  throw new Error("crash-resume: the worker exited before priming the crash window");
+}
+
+function parseWorkerMessage(line: string): WorkerMessage {
   try {
-    return await new Promise<PrimedMessage>((resolve, reject) => {
-      rl.on("line", (line) => {
-        const message = JSON.parse(line) as WorkerMessage;
-        switch (message.type) {
-          case "ready-normal":
-            console.log(`\n  worker: drained ${message.processed} changes normally — durable cursor at "${message.checkpoint ?? "(none)"}"`);
-            break;
-          case "primed":
-            console.log(`  worker: committed change @${message.offset} to belief, but did NOT checkpoint it`);
-            console.log(`          (durable cursor still at "${message.checkpoint ?? "(none)"}" — this is the crash window)`);
-            resolve(message);
-            break;
-        }
-      });
-      child.once("exit", (code, signal) => {
-        reject(new Error(`worker exited early (code=${code ?? "null"}, signal=${signal ?? "null"}) before priming the crash window`));
-      });
-      child.once("error", reject);
-    });
-  } finally {
-    rl.close();
+    return JSON.parse(line) as WorkerMessage;
+  } catch {
+    throw new Error(`crash-resume: the worker wrote a non-protocol line to stdout: ${line}`);
   }
 }
 
-/** Kill `worker` and wait for its exit event, reporting the exact code/signal. */
-function killAndWaitForExit(worker: ChildProcess, signal: NodeJS.Signals): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+function killAndWaitForExit(worker: ChildProcess, signal: NodeJS.Signals): Promise<ExitStatus> {
+  if (worker.exitCode !== null || worker.signalCode !== null) {
+    return Promise.resolve({ code: worker.exitCode, signal: worker.signalCode });
+  }
   return new Promise((resolve) => {
     worker.once("exit", (code, exitSignal) => resolve({ code, signal: exitSignal }));
     worker.kill(signal);
   });
-}
-
-const RULE = "━".repeat(74);
-function section(title: string): void {
-  console.log("\n" + RULE);
-  console.log(` ${title}`);
-  console.log(RULE);
 }
 
 export async function main(): Promise<void> {
@@ -116,107 +102,73 @@ export async function main(): Promise<void> {
   const beliefDbPath = join(dir, "belief.db");
   const checkpointDbPath = join(dir, "checkpoints.db");
 
-  let child: ChildProcess | undefined;
+  let worker: ChildProcess | undefined;
   const stores: { close: () => Promise<void> }[] = [];
 
-  const timer = setTimeout(() => {
-    console.error("\n  crash-resume: hard timeout exceeded — force-killing the worker and aborting");
-    child?.kill("SIGKILL");
+  // Deliberately NOT unref'd: a hang with nothing left on the event loop would
+  // otherwise let Node exit 0 and pass the demo silently.
+  const watchdog = setTimeout(() => {
+    console.error(`\n  crash-resume: no result after ${HARD_TIMEOUT_MS}ms — killing the worker and aborting`);
+    worker?.kill("SIGKILL");
     process.exit(1);
   }, HARD_TIMEOUT_MS);
-  // A hard-timeout setTimeout would otherwise keep the process alive on its
-  // own; unref it so a normal successful run exits the instant main() returns.
-  timer.unref();
 
   try {
-    // ----------------------------------------------------------
-    // (a) A real child process, file-backed stores, driven to the crash window
-    // ----------------------------------------------------------
     section("(a) Spawn a real materializer process against file-backed stores");
     console.log(`\n  belief db:     ${beliefDbPath}`);
     console.log(`  checkpoint db: ${checkpointDbPath}`);
 
-    child = spawn(process.execPath, [TSX_CLI, WORKER_PATH, beliefDbPath, checkpointDbPath], {
+    worker = spawn(process.execPath, ["--import", TSX_LOADER, WORKER_PATH, beliefDbPath, checkpointDbPath], {
       stdio: ["ignore", "pipe", "inherit"],
     });
-    const primed = await primeForCrash(child);
+    const primed = await waitUntilPrimed(worker);
 
     console.log("\n  >>> killing the materializer with SIGKILL now — no cleanup, no finally block <<<");
-    const exit = await killAndWaitForExit(child, "SIGKILL");
+    const exit = await killAndWaitForExit(worker, "SIGKILL");
     if (exit.signal !== "SIGKILL") {
-      throw new Error(`crash-resume: expected the worker to die by SIGKILL; it exited with code=${exit.code ?? "null"} signal=${exit.signal ?? "null"}`);
+      throw new Error(`crash-resume: expected the worker to die by SIGKILL; it exited with code=${exit.code} signal=${exit.signal}`);
     }
     console.log(`  worker is dead (signal ${exit.signal}) — durable cursor frozen at "${primed.checkpoint ?? "(none)"}"`);
 
-    // ----------------------------------------------------------
-    // (b) Resume in-process — drain what the crash left behind
-    // ----------------------------------------------------------
     section("(b) Resume in-process against the SAME on-disk stores");
 
-    const { belief: resumedBelief, cursor: resumedCursor, book: resumedBook } = await openFileBackedStores(beliefDbPath, checkpointDbPath);
-    stores.push(resumedBelief, resumedCursor);
+    const { belief, cursor, book } = await openFileBackedStores(beliefDbPath, checkpointDbPath);
+    stores.push(belief, cursor);
 
-    const revisionAtPrime = primed.revision;
-    const anchorAfterReopen = await resumedBelief.recordedNow();
-    const revisionAfterReopen = anchorAfterReopen === undefined ? -1 : recordedInstantRevision(anchorAfterReopen);
-    if (revisionAfterReopen !== revisionAtPrime) {
-      throw new Error(`crash-resume: reopening the file-backed belief store should read back revision ${revisionAtPrime}, got ${revisionAfterReopen}`);
-    }
+    const revisionAfterReopen = await currentRevision(belief);
+    assertEqual(revisionAfterReopen, primed.revision, "recorded revision after reopening the killed worker's store");
     console.log(`\n  reopened the SAME on-disk stores after the kill — recorded revision still ${revisionAfterReopen} (nothing lost, nothing extra)`);
 
-    const resumedSource = mockShapeSource(STREAM_NAME, CHANGES);
-    const resumed = await consume({ source: resumedSource, store: resumedBelief, checkpoints: resumedBook, project });
-
-    const expectedRedelivered = CHANGES.length - PRIME_INDEX;
-    const lastChange = CHANGES.at(-1);
-    if (lastChange === undefined) throw new Error("crash-resume: CHANGES must be non-empty");
-    if (resumed.processed !== expectedRedelivered) {
-      throw new Error(`crash-resume: expected resume to process ${expectedRedelivered} changes, processed ${resumed.processed}`);
-    }
-    if (resumed.fromOffset !== primed.checkpoint) {
-      throw new Error(`crash-resume: expected resume to start from "${primed.checkpoint ?? "(none)"}", started from "${resumed.fromOffset ?? "(none)"}"`);
-    }
-    if (resumed.lastOffset !== lastChange.offset) {
-      throw new Error(`crash-resume: expected resume to finish at "${lastChange.offset}", finished at "${resumed.lastOffset ?? "(none)"}"`);
-    }
-    console.log(`  resumed: processed ${resumed.processed} changes (cursor "${resumed.fromOffset ?? "(none)"}" → "${resumed.lastOffset ?? "(none)"}")`);
+    const resumed = await consume({ source: mockShapeSource(STREAM_NAME, CHANGES), store: belief, checkpoints: book, project });
+    const redelivered = CHANGES.length - PRIME_INDEX;
+    assertEqual(resumed.fromOffset, primed.checkpoint, "offset the resume started from");
+    assertEqual(resumed.processed, redelivered, "changes processed on resume");
+    assertEqual(resumed.lastOffset, CHANGES.at(-1)?.offset, "offset the resume finished at");
+    console.log(`  resumed: processed ${resumed.processed} changes (cursor "${resumed.fromOffset}" → "${resumed.lastOffset}")`);
     console.log(`    → change @${primed.offset} was RE-DELIVERED (it was already in belief); everything after it is new`);
 
-    const anchorAfterResume = await resumedBelief.recordedNow();
-    const revisionAfterResume = anchorAfterResume === undefined ? -1 : recordedInstantRevision(anchorAfterResume);
-    const revisionDelta = revisionAfterResume - revisionAfterReopen;
-    const expectedDelta = expectedRedelivered - 1; // the redelivered change coalesces to a no-op
-    if (revisionDelta !== expectedDelta) {
-      throw new Error(`crash-resume: expected the recorded clock to advance by ${expectedDelta}, advanced by ${revisionDelta}`);
-    }
-    console.log(`  recorded clock advanced by ${revisionDelta}, not ${expectedRedelivered} — the redelivered change was ABSORBED, not reapplied as new history`);
+    // The re-delivered change coalesces to a no-op, so it allocates no revision.
+    const revisionDelta = (await currentRevision(belief)) - revisionAfterReopen;
+    assertEqual(revisionDelta, redelivered - 1, "recorded revisions allocated by the resume");
+    console.log(`  recorded clock advanced by ${revisionDelta}, not ${redelivered} — the redelivered change was ABSORBED, not reapplied as new history`);
 
-    const resumedRows = await rows(resumedBelief);
-    if (resumedRows.length !== CHANGES.length) {
-      throw new Error(`crash-resume: expected ${CHANGES.length} rows after resume, found ${resumedRows.length} — a duplicate or a loss`);
-    }
+    const resumedRows = await rows(belief);
+    assertEqual(resumedRows.length, CHANGES.length, "belief rows after resume (a mismatch is a duplicate or a loss)");
     console.log(`  belief row count: ${resumedRows.length} (matches ${CHANGES.length} distinct keys — no duplicates)`);
 
-    // ----------------------------------------------------------
-    // (c) Compare against a clean, uninterrupted run
-    // ----------------------------------------------------------
     section("(c) Compare against a clean, uninterrupted run of the same stream");
 
     const cleanBelief = await newStore(observationGraph, true);
-    const cleanCursorStore = await newStore(checkpointGraph);
-    stores.push(cleanBelief, cleanCursorStore);
-    const cleanBook = typeGraphCheckpoints(cleanCursorStore);
-    const cleanSource = mockShapeSource(STREAM_NAME, CHANGES);
-    await consume({ source: cleanSource, store: cleanBelief, checkpoints: cleanBook, project });
+    const cleanCursor = await newStore(checkpointGraph);
+    stores.push(cleanBelief, cleanCursor);
+    await consume({
+      source: mockShapeSource(STREAM_NAME, CHANGES),
+      store: cleanBelief,
+      checkpoints: typeGraphCheckpoints(cleanCursor),
+      project,
+    });
     const cleanRows = await rows(cleanBelief);
-
-    const resumedSerialized = serializeRows(resumedRows);
-    const cleanSerialized = serializeRows(cleanRows);
-    if (resumedSerialized !== cleanSerialized) {
-      throw new Error(
-        `crash-resume: resumed graph diverged from a clean, uninterrupted run.\n  resumed: ${resumedSerialized}\n  clean:   ${cleanSerialized}`,
-      );
-    }
+    assertEqual(serializeRows(resumedRows), serializeRows(cleanRows), "resumed graph vs a clean, uninterrupted run");
     console.log(`\n  resumed graph === clean graph (${cleanRows.length} rows, byte-identical sorted serialization)`);
 
     console.log("\n" + RULE);
@@ -229,10 +181,8 @@ export async function main(): Promise<void> {
     console.log("  them is real, and idempotent projection plus coalescing is what closes it.");
     console.log(RULE + "\n");
   } finally {
-    clearTimeout(timer);
-    if (child !== undefined && child.exitCode === null && child.signalCode === null) {
-      child.kill("SIGKILL");
-    }
+    clearTimeout(watchdog);
+    if (worker !== undefined && worker.exitCode === null && worker.signalCode === null) worker.kill("SIGKILL");
     await Promise.allSettled(stores.map((store) => store.close()));
     await rm(dir, { recursive: true, force: true });
   }

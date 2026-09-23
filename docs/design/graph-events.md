@@ -54,9 +54,9 @@ It is the existing core, one new layer, and more sources.
 > helpers) is correspondingly competitive. The four points below are the real
 > argument.
 
-Every demo in this repo hand-rolls the same projection —
+Before this layer, every demo hand-rolled the same projection —
 `examples/agents.ts`, `deep-survey-convergence.ts`, `provenance-retraction.ts`,
-`exactly-once.ts`, `fork-merge.ts` all run `switch (change.shape)` into
+`exactly-once.ts`, `fork-merge.ts` each decoded `change.value` straight into
 `upsertById` / `getOrCreateByEndpoints` / `delete`.
 
 The repeated part is not the interesting part. What is genuinely hard, and what
