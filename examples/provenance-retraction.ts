@@ -5,29 +5,27 @@
  *
  * Where `examples/agents.ts` projects a flat stream (each change is a direct
  * observation), this demo models a DERIVED belief: facts are grounded by
- * sources through explicit justification nodes. When a bad source is retracted,
- * facts that only it supported go non-current (soft-deleted), while facts with
- * alternate support survive — and the recorded-time history keeps the
- * before/after audit trail.
+ * sources through explicit justification nodes. Retracting a source makes the
+ * facts only it supported non-current (soft-deleted), while facts with
+ * alternate support survive — and recorded time keeps the before/after audit
+ * trail.
  *
  *   Source(s) ──premiseOf──▶ Justification ──derives──▶ Fact(s)
  *
- * This demo exercises the provenance API's multi-source-kind, terminal-fact,
- * bulk-retract, and graph-typed-ref surfaces:
- *  - TWO source kinds (`ScannerSource`, `VendorSource`) via `source.kinds`
- *  - a TERMINAL fact (`DeployDecision`) that is never a premise — it need not
- *    appear in `premiseOf.from`, so the schema admits no meaningless edges
- *  - `retractMany` / `unRetractMany` for bulk source retraction
- *  - graph-typed refs: `retract({ kind: "ScannerSource", id })` typechecks
- *    without `as never` casts — `"ScannerSource"` is a valid `NodeKind<G>`
- *  - `asNodeId(id)` brands a plain id for point reads (`getById`), so no
- *    read surface in this demo needs an `as never` cast either
+ * Provenance surfaces exercised:
+ *  - two source kinds (`ScannerSource`, `VendorSource`) via `source.kinds`
+ *  - a TERMINAL fact (`DeployDecision`) that is never a premise, so it is left
+ *    out of `premiseOf.from` — a cascade still reaches it through `derives`
+ *  - `retractMany` / `unRetractMany` for bulk retraction
+ *  - graph-typed refs: `{ kind: "ScannerSource", id }` is checked against the
+ *    graph's node kinds at compile time
+ *
+ * Every belief state and replay below is asserted, not just printed.
  *
  * Run with:  pnpm demo:provenance
  */
 import {
   asNodeId,
-  createStoreWithSchema,
   defineEdge,
   defineGraph,
   defineNode,
@@ -36,6 +34,7 @@ import {
 import {
   createRetractionCapability,
   type ProvenanceFactRef,
+  type RetractionCapability,
   type RetractionReport,
 } from "@nicia-ai/typegraph/provenance";
 import { z } from "zod";
@@ -48,7 +47,7 @@ import {
   type Projector,
   type ShapeChange,
 } from "../src";
-import { makeBackend, runAsMain } from "./_support";
+import { newStore, RULE, runAsMain } from "./_support";
 
 // ============================================================
 // Provenance graph: two source kinds, two fact kinds, AND-justifications
@@ -72,8 +71,6 @@ const Vulnerability = defineNode("Vulnerability", {
   schema: z.object({ cve: z.string(), pkg: z.string() }),
 });
 
-// A TERMINAL fact: derived from a vulnerability, never itself a premise, so it
-// does not appear in `premiseOf.from` below.
 const DeployDecision = defineNode("DeployDecision", {
   schema: z.object({ action: z.string() }),
 });
@@ -95,8 +92,8 @@ const securityGraph = defineGraph({
     Justification: { type: Justification },
   },
   edges: {
-    // DeployDecision is deliberately NOT a premise kind — terminal facts no
-    // longer need to be listed here. Sources + non-terminal facts are premises.
+    // Sources and non-terminal facts are premises; the terminal DeployDecision
+    // is not, so the schema admits no meaningless DeployDecision premise edge.
     premiseOf: { type: premiseOf, from: [ScannerSource, VendorSource, Vulnerability], to: [Justification] },
     derives: { type: derives, from: [Justification], to: [Vulnerability, DeployDecision] },
   },
@@ -104,8 +101,8 @@ const securityGraph = defineGraph({
 
 type SecurityStore = HistoryStore<typeof securityGraph>;
 
-// source.kinds admits both source kinds; the kinds are graph-typed, so a
-// typo like "ScanerSource" is a compile error, not a runtime ConfigurationError.
+// Kinds are graph-typed, so a typo like "ScanerSource" is a compile error
+// rather than a runtime ConfigurationError.
 const retractionConfig = {
   source: { kinds: ["ScannerSource", "VendorSource"] },
   justification: { kind: "Justification" },
@@ -117,6 +114,16 @@ const retractionConfig = {
 // ============================================================
 // The stream: two scanner findings, one vendor advisory, one policy
 // ============================================================
+
+const STREAM_NAME = "security-intel";
+
+const SCANNER_1 = { kind: "ScannerSource", id: "scanner-1" } as const;
+const SCANNER_2 = { kind: "ScannerSource", id: "scanner-2" } as const;
+const VENDOR = { kind: "VendorSource", id: "vendor-1" } as const;
+const VULN_ID = "vuln-libvector";
+const DECISION_ID = "block-deploy";
+
+const LIBVECTOR_CVE = { vulnId: VULN_ID, cve: "CVE-2026-1234", pkg: "libvector 4.2" } as const;
 
 type FindingValue = Readonly<{
   sourceKind: "ScannerSource" | "VendorSource";
@@ -130,10 +137,10 @@ type PolicyValue = Readonly<{ vulnId: string; decisionId: string; action: string
 type IntelValue = FindingValue | PolicyValue;
 
 const INTEL_CHANGES: readonly ShapeChange<IntelValue>[] = [
-  { offset: "001", shape: "finding", key: "scanner-1", operation: "insert", value: { sourceKind: "ScannerSource", sourceId: "scanner-1", sourceLabel: "Unverified scanner #1", vulnId: "vuln-libvector", cve: "CVE-2026-1234", pkg: "libvector 4.2" } },
-  { offset: "002", shape: "finding", key: "scanner-2", operation: "insert", value: { sourceKind: "ScannerSource", sourceId: "scanner-2", sourceLabel: "Unverified scanner #2", vulnId: "vuln-libvector", cve: "CVE-2026-1234", pkg: "libvector 4.2" } },
-  { offset: "003", shape: "advisory", key: "vendor-1", operation: "insert", value: { sourceKind: "VendorSource", sourceId: "vendor-1", sourceLabel: "Vendor security advisory", vulnId: "vuln-libvector", cve: "CVE-2026-1234", pkg: "libvector 4.2" } },
-  { offset: "004", shape: "policy", key: "policy-1", operation: "insert", value: { vulnId: "vuln-libvector", decisionId: "block-deploy", action: "Block the production deploy" } },
+  { offset: "001", shape: "finding", key: SCANNER_1.id, operation: "insert", value: { sourceKind: SCANNER_1.kind, sourceId: SCANNER_1.id, sourceLabel: "Unverified scanner #1", ...LIBVECTOR_CVE } },
+  { offset: "002", shape: "finding", key: SCANNER_2.id, operation: "insert", value: { sourceKind: SCANNER_2.kind, sourceId: SCANNER_2.id, sourceLabel: "Unverified scanner #2", ...LIBVECTOR_CVE } },
+  { offset: "003", shape: "advisory", key: VENDOR.id, operation: "insert", value: { sourceKind: VENDOR.kind, sourceId: VENDOR.id, sourceLabel: "Vendor security advisory", ...LIBVECTOR_CVE } },
+  { offset: "004", shape: "policy", key: "policy-1", operation: "insert", value: { vulnId: VULN_ID, decisionId: DECISION_ID, action: "Block the production deploy" } },
 ];
 
 // ============================================================
@@ -152,18 +159,19 @@ const project: Projector<typeof securityGraph, IntelValue> = async (tx, change) 
   const value = change.value;
 
   if (isFinding(value)) {
-    // The source kind is data-driven from the stream; narrow to the typed
-    // collection by branching on sourceKind rather than indexing dynamically.
     const sourceRef = { kind: value.sourceKind, id: value.sourceId } as const;
     const vulnRef = { kind: "Vulnerability", id: value.vulnId } as const;
     const jId = justificationId(value.sourceId, value.vulnId);
     const jRef = { kind: "Justification", id: jId } as const;
 
-    if (value.sourceKind === "ScannerSource") {
-      await tx.nodes.ScannerSource.upsertById(value.sourceId, { label: value.sourceLabel, retracted: false });
-    } else {
-      await tx.nodes.VendorSource.upsertById(value.sourceId, { label: value.sourceLabel, retracted: false });
-    }
+    // The source kind is data-driven from the stream; branching on it reaches
+    // the typed collection without indexing `tx.nodes` dynamically. A retraction
+    // is a judgement about the source, not something it reports, so a
+    // re-delivered finding carries the existing flag forward instead of
+    // resetting it.
+    const sources = value.sourceKind === "ScannerSource" ? tx.nodes.ScannerSource : tx.nodes.VendorSource;
+    const existingSource = await sources.getById(asNodeId(value.sourceId));
+    await sources.upsertById(value.sourceId, { label: value.sourceLabel, retracted: existingSource?.retracted ?? false });
     await tx.nodes.Vulnerability.upsertById(value.vulnId, { cve: value.cve, pkg: value.pkg });
     await tx.nodes.Justification.upsertById(jId, { rule: `${value.sourceLabel} reports ${value.cve}` });
     await tx.edges.premiseOf.getOrCreateByEndpoints(sourceRef, jRef, {});
@@ -183,17 +191,22 @@ const project: Projector<typeof securityGraph, IntelValue> = async (tx, change) 
 };
 
 // ============================================================
-// Reporting helpers
+// Reporting and assertion helpers
 // ============================================================
 
+const NONE = "(none)";
+const NON_CURRENT = "(retracted — non-current)";
+
+type Holding = Pick<RetractionCapability<typeof securityGraph>, "holding">;
+
 function formatRefs(refs: readonly ProvenanceFactRef<typeof securityGraph>[]): string {
-  if (refs.length === 0) return "(none)";
+  if (refs.length === 0) return NONE;
   return refs.map((r) => `${r.kind}/${r.id}`).sort().join(", ");
 }
 
 function formatReport(report: RetractionReport<typeof securityGraph>): string {
   const survived = report.survivedVia.length === 0
-    ? "(none)"
+    ? NONE
     : report.survivedVia.map((s) => `${s.fact.id} via ${s.via.map((j) => j.id).join(" + ")}`).sort().join("; ");
   return [
     `    died:       ${formatRefs(report.died)}`,
@@ -202,14 +215,27 @@ function formatReport(report: RetractionReport<typeof securityGraph>): string {
   ].join("\n");
 }
 
-async function currentVuln(store: SecurityStore, id: string): Promise<string> {
-  const row = await store.nodes.Vulnerability.getById(asNodeId(id));
-  return row === undefined ? "(retracted — non-current)" : `${row.cve} on ${row.pkg}`;
-}
+const BOTH_FACTS_HELD = `DeployDecision/${DECISION_ID}, Vulnerability/${VULN_ID}`;
 
-async function currentDecision(store: SecurityStore, id: string): Promise<string> {
-  const row = await store.nodes.DeployDecision.getById(asNodeId(id));
-  return row === undefined ? "(retracted — non-current)" : row.action;
+/**
+ * Prints the current derived belief and throws unless it matches `expected`.
+ * The vulnerability and the decision derived from it always share one fate
+ * here, so a single expectation covers both.
+ */
+async function showBelief(provenance: Holding, store: SecurityStore, expected: "held" | "non-current"): Promise<void> {
+  const holding = formatRefs(await provenance.holding());
+  const vuln = await store.nodes.Vulnerability.getById(asNodeId(VULN_ID));
+  const decision = await store.nodes.DeployDecision.getById(asNodeId(DECISION_ID));
+  console.log(`    holding():       ${holding}`);
+  console.log(`    vulnerability:   ${vuln === undefined ? NON_CURRENT : `${vuln.cve} on ${vuln.pkg}`}`);
+  console.log(`    deploy decision: ${decision?.action ?? NON_CURRENT}`);
+
+  const held = expected === "held";
+  const matches =
+    holding === (held ? BOTH_FACTS_HELD : NONE) && (vuln !== undefined) === held && (decision !== undefined) === held;
+  if (!matches) {
+    throw new Error(`expected the vulnerability and deploy decision to be ${expected}; holding() = ${holding}`);
+  }
 }
 
 // ============================================================
@@ -217,97 +243,65 @@ async function currentDecision(store: SecurityStore, id: string): Promise<string
 // ============================================================
 
 export async function main(): Promise<void> {
-  const rule = "=".repeat(74);
-  console.log(rule);
+  console.log(RULE);
   console.log(" Agent stream → justified belief → source retraction");
-  console.log(rule);
+  console.log(RULE);
 
-  const [belief] = await createStoreWithSchema(securityGraph, await makeBackend(), {
-    history: true,
-    coalesceUnchangedUpserts: true,
-  });
-  const [cursor] = await createStoreWithSchema(checkpointGraph, await makeBackend());
-  const book = typeGraphCheckpoints(cursor);
+  const belief = await newStore(securityGraph, true);
+  const cursor = await newStore(checkpointGraph);
 
   try {
     // --- (a) Durable consumption: stream → provenance graph ----------------
-    const source = mockShapeSource<IntelValue>("security-intel", INTEL_CHANGES);
+    const book = typeGraphCheckpoints(cursor);
+    const source = mockShapeSource(STREAM_NAME, INTEL_CHANGES);
     const result = await consume({ source, store: belief, checkpoints: book, project });
+    const consumedOffset = result.lastOffset;
+    const consumedAnchor = consumedOffset === undefined ? undefined : await book.anchorFor(STREAM_NAME, consumedOffset);
+    if (consumedAnchor === undefined) throw new Error(`no checkpoint anchor after consuming ${STREAM_NAME}`);
     console.log(`\n  Durable consumer projected ${result.processed} changes into the provenance graph.`);
-    console.log(`    cursor at offset: ${await book.lastOffset("security-intel")}`);
+    console.log(`    cursor at offset: ${consumedOffset}`);
 
     // --- (b) Initial well-founded belief -----------------------------------
     const provenance = createRetractionCapability(belief, retractionConfig);
-    console.log(`\n  Initial derived belief (holding()):`);
-    console.log(`    ${formatRefs(await provenance.holding())}`);
-    console.log(`    vulnerability: ${await currentVuln(belief, "vuln-libvector")}`);
-    console.log(`    deploy decision: ${await currentDecision(belief, "block-deploy")}`);
+    console.log(`\n  Initial derived belief:`);
+    await showBelief(provenance, belief, "held");
 
-    // --- (c) Bulk-retract both scanner sources at once ----------------------
-    // retractMany([scanner-1, scanner-2]) — both unverified scanners retracted
-    // in one transition. The vulnerability survives through the vendor advisory;
-    // the deploy decision survives because its premise (the vulnerability) is
-    // still held. The graph-typed refs need no `as never` cast: "ScannerSource"
-    // is a valid NodeKind<typeof securityGraph>.
-    const beforeScanners = await belief.recordedNow();
+    // --- (c) Bulk-retract both scanners: the vendor advisory still holds ----
+    // The vulnerability survives through the vendor advisory, and the deploy
+    // decision survives because its premise (the vulnerability) is still held.
     console.log(`\n  retractMany([scanner-1, scanner-2]) — bulk-retract both unverified scanners.`);
-    console.log(`  ${formatReport(await provenance.retractMany([
-      { kind: "ScannerSource", id: "scanner-1" },
-      { kind: "ScannerSource", id: "scanner-2" },
-    ]))}`);
-    console.log(`    holding(): ${formatRefs(await provenance.holding())}`);
-    console.log(`    vulnerability: ${await currentVuln(belief, "vuln-libvector")}`);
-    console.log(`    deploy decision: ${await currentDecision(belief, "block-deploy")}`);
+    console.log(formatReport(await provenance.retractMany([SCANNER_1, SCANNER_2])));
+    await showBelief(provenance, belief, "held");
 
-    // --- (d) Retract the vendor advisory too — cascade ----------------------
-    // Now the vulnerability loses all support and dies; the deploy decision,
-    // whose only premise was that vulnerability, dies with it (terminal fact,
-    // not in premiseOf.from — the cascade still reaches it through derives).
-    console.log(`\n  retract(vendor-1) — cascade: vulnerability and deploy-decision die.`);
-    console.log(`  ${formatReport(await provenance.retract({ kind: "VendorSource", id: "vendor-1" }))}`);
-    console.log(`    holding(): ${formatRefs(await provenance.holding())}`);
-    console.log(`    vulnerability: ${await currentVuln(belief, "vuln-libvector")}`);
-    console.log(`    deploy decision: ${await currentDecision(belief, "block-deploy")}`);
-    const afterVendor = await belief.recordedNow();
+    // --- (d) Retract the vendor advisory too: cascade -----------------------
+    // The vulnerability loses its last support and dies; the deploy decision,
+    // whose only premise was that vulnerability, dies with it.
+    console.log(`\n  retract(vendor-1) — cascade: vulnerability and deploy decision die.`);
+    console.log(formatReport(await provenance.retract(VENDOR)));
+    await showBelief(provenance, belief, "non-current");
+    const afterVendorRetraction = await belief.recordedNow();
+    if (afterVendorRetraction === undefined) throw new Error("expected a recorded instant after the retraction");
 
     // --- (e) Recorded-time replay: the audit trail --------------------------
-    // The deploy decision was current before the vendor retraction and
-    // non-current after — both states reconstruct from recorded time.
-    const decisionBefore = beforeScanners !== undefined
-      ? await belief.asOfRecorded(beforeScanners).nodes.DeployDecision.getById(asNodeId("block-deploy"))
-      : undefined;
-    const decisionAfter = afterVendor !== undefined
-      ? await belief.asOfRecorded(afterVendor).nodes.DeployDecision.getById(asNodeId("block-deploy"))
-      : undefined;
+    // Retraction soft-deletes, so the pre-retraction belief is still
+    // reconstructible — here from the consumer's own checkpoint anchor.
+    const decisionAsConsumed = await belief.asOfRecorded(consumedAnchor).nodes.DeployDecision.getById(asNodeId(DECISION_ID));
+    const decisionAfter = await belief.asOfRecorded(afterVendorRetraction).nodes.DeployDecision.getById(asNodeId(DECISION_ID));
     console.log(`\n  Recorded-time replay of the deploy decision:`);
-    console.log(`    @before scanner retraction: ${decisionBefore === undefined ? "non-current" : decisionBefore.action}`);
-    console.log(`    @after vendor retraction:   ${decisionAfter === undefined ? "non-current" : decisionAfter.action}`);
-
-    // Also replay via the durable consumer's offset anchor — the belief at the
-    // consumed offset (before any retraction) still shows the vulnerability.
-    const anchorAt4 = await book.anchorFor("security-intel", "004");
-    if (anchorAt4 !== undefined) {
-      const atConsumption = belief.asOfRecorded(anchorAt4);
-      const vulnAtConsumption = await atConsumption.nodes.Vulnerability.getById(asNodeId("vuln-libvector"));
-      console.log(`    @consumer offset 004:        ${vulnAtConsumption === undefined ? "non-current" : `${vulnAtConsumption.cve} on ${vulnAtConsumption.pkg}`}`);
+    console.log(`    @offset ${consumedOffset} (as consumed): ${decisionAsConsumed?.action ?? NON_CURRENT}`);
+    console.log(`    @after vendor retraction:  ${decisionAfter?.action ?? NON_CURRENT}`);
+    if (decisionAsConsumed === undefined || decisionAfter !== undefined) {
+      throw new Error("expected replay to show the decision current as consumed and non-current after the retraction");
     }
 
-    // --- (f) Bulk un-retract both scanners — belief reopens -----------------
-    // unRetractMany([scanner-1, scanner-2]) — both scanners restored in one
-    // transition. The vulnerability reopens via the scanners; the deploy
-    // decision reopens because its premise is held again.
+    // --- (f) Bulk un-retract both scanners: belief reopens ------------------
     console.log(`\n  unRetractMany([scanner-1, scanner-2]) — bulk-restore both scanners.`);
-    console.log(`  ${formatReport(await provenance.unRetractMany([
-      { kind: "ScannerSource", id: "scanner-1" },
-      { kind: "ScannerSource", id: "scanner-2" },
-    ]))}`);
-    console.log(`    holding(): ${formatRefs(await provenance.holding())}`);
-    console.log(`    vulnerability: ${await currentVuln(belief, "vuln-libvector")}`);
-    console.log(`    deploy decision: ${await currentDecision(belief, "block-deploy")}`);
+    console.log(formatReport(await provenance.unRetractMany([SCANNER_1, SCANNER_2])));
+    await showBelief(provenance, belief, "held");
 
-    console.log(`\n${rule}`);
+    console.log(`\n${RULE}`);
     console.log(" Retraction revises belief currency; recorded time keeps the audit trail.");
-    console.log(`${rule}\n`);
+    console.log(`${RULE}\n`);
   } finally {
     await Promise.allSettled([belief.close(), cursor.close()]);
   }

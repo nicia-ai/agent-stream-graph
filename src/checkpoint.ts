@@ -109,10 +109,12 @@ const checkpointRowId = (stream: string, offset: string): string =>
   JSON.stringify([stream, offset]);
 
 /**
- * The Checkpoint/Stream write surface — the shape shared by the store's own
- * `nodes` and the `nodes` of an adopted transaction context, so
+ * The Checkpoint/Stream write surface — the shape shared by a callback
+ * transaction's `nodes` and the `nodes` of an adopted transaction context, so
  * {@link CheckpointBook.record} and {@link AdoptingCheckpointBook.recordIn}
- * share one advance body over either.
+ * share one advance body over either. Both callers run it inside a
+ * transaction: the high-water is a read-then-write, so two unserialized
+ * advances on one stream could land the older offset last.
  */
 type CheckpointWriteNodes = Store<typeof checkpointGraph>["nodes"];
 
@@ -144,7 +146,9 @@ export function typeGraphCheckpoints(store: CheckpointStore): CheckpointBook {
       return row?.lastOffset;
     },
     async record(stream, offset, anchor) {
-      await advanceCheckpoint(store.nodes, stream, offset, anchor);
+      await store.transaction((tx) =>
+        advanceCheckpoint(tx.nodes, stream, offset, anchor),
+      );
     },
     async anchorFor(stream, offset) {
       const row = await store.nodes.Checkpoint.getById(

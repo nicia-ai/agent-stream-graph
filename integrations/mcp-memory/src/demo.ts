@@ -135,6 +135,9 @@ export async function main(): Promise<void> {
     if (afterSecondRetraction.currentlyHeld) {
       throw new Error("fact survived after every source that justified it was retracted");
     }
+    if (afterSecondRetraction.supportedBy.length !== 2 || !afterSecondRetraction.supportedBy.every((s) => s.retracted)) {
+      throw new Error(`provenance lost with the fact: expected both sources on record as retracted, got ${JSON.stringify(afterSecondRetraction.supportedBy)}`);
+    }
     console.log("\n  >>> A fact is only as strong as its live support. Losing the last source <<<");
     console.log("      un-derives it — its two sources are still on record, both now retracted.");
 

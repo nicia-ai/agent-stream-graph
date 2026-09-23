@@ -72,13 +72,16 @@ export const projectObservation: Projector<MemoryGraph, ObservationValue> = asyn
   }
 };
 
-const projectVerification: Projector<MemoryGraph, VerificationValue> = async (tx, change) => {
+export const projectVerification: Projector<MemoryGraph, VerificationValue> = async (tx, change) => {
   const value = change.value;
   const subject = personId(value.personEmail);
   const fId = factId(subject, VERIFIED_PREDICATE);
   const jId = justificationId(value.sourceId, fId);
 
-  await tx.nodes.Source.upsertById(value.sourceId, { label: value.sourceLabel, retracted: false });
+  // A retraction is a judgement about the source, not something the source
+  // reports, so a re-delivered or later observation from it must not undo it.
+  const existingSource = await tx.nodes.Source.getById(asNodeId(value.sourceId));
+  await tx.nodes.Source.upsertById(value.sourceId, { label: value.sourceLabel, retracted: existingSource?.retracted ?? false });
   await tx.nodes.Fact.upsertById(fId, { predicate: VERIFIED_PREDICATE, value: "true" });
   await tx.nodes.Justification.upsertById(jId, { rule: `${value.sourceLabel} verified identity` });
   await tx.edges.premiseOf.getOrCreateByEndpoints({ kind: "Source", id: value.sourceId }, { kind: "Justification", id: jId }, {});

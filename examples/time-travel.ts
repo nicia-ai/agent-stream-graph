@@ -20,7 +20,7 @@
  * are asserted, not just printed: this demo throws if time travel does not
  * actually reproduce what happened.
  *
- * Run with:  pnpm tsx examples/time-travel.ts
+ * Run with:  pnpm demo:time-travel
  */
 import { asNodeId, defineGraph, defineNode, type NodeId, recordedInstantRevision } from "@nicia-ai/typegraph";
 import { z } from "zod";
@@ -35,7 +35,7 @@ import {
   type Projector,
   type ShapeChange,
 } from "../src";
-import { newStore, runAsMain } from "./_support";
+import { newStore, RULE, runAsMain, section } from "./_support";
 
 // ============================================================
 // The belief graph: one node kind, one field worth debugging
@@ -59,19 +59,21 @@ type HostRow = Readonly<{ status: string }>;
 const STREAM_NAME = "ops-agent";
 const HOST_ID = "db-primary";
 
-/** The offset the agent acted at — recorded up front so the demo can prove it. */
+/** The offset the agent acted at: the glitch that reported recovery. */
 const ACTED_AT_OFFSET = "003";
 
 const CHANGES: readonly ShapeChange<HostRow>[] = [
   { offset: "001", shape: "host", key: HOST_ID, operation: "insert", value: { status: "healthy" } },
   { offset: "002", shape: "host", key: HOST_ID, operation: "update", value: { status: "degraded" } },
   // A monitoring glitch reports recovery. This is the belief the agent acts on.
-  { offset: "003", shape: "host", key: HOST_ID, operation: "update", value: { status: "healthy" } },
+  { offset: ACTED_AT_OFFSET, shape: "host", key: HOST_ID, operation: "update", value: { status: "healthy" } },
   { offset: "004", shape: "host", key: HOST_ID, operation: "update", value: { status: "degraded" } },
   // The correction: the host never recovered — it was degrading toward outage
-  // the whole time offset 003 called it "healthy".
+  // the whole time the glitch called it "healthy".
   { offset: "005", shape: "host", key: HOST_ID, operation: "update", value: { status: "down" } },
 ];
+
+const CHANGES_BEFORE_ACTING = CHANGES.findIndex((change) => change.offset === ACTED_AT_OFFSET) + 1;
 
 // ============================================================
 // Idempotent projection — a pure decoder, unit-testable without a store
@@ -96,7 +98,9 @@ type Decision = "NO_ACTION" | "PAGE_ON_CALL";
  * much of the surface is what lets `decideAction`/`statusOf` run unmodified
  * against either.
  */
-type HostReader = { nodes: { Host: { getById: (id: NodeId<typeof Host>) => Promise<{ status: string } | undefined> } } };
+type HostReader = Readonly<{
+  nodes: { Host: { getById: (id: NodeId<typeof Host>) => Promise<HostRow | undefined> } };
+}>;
 
 /**
  * Reads the host's belief from `view` and decides whether to page. This is
@@ -119,13 +123,6 @@ async function statusOf(view: HostReader, hostId: string): Promise<string> {
 // Main
 // ============================================================
 
-const RULE = "━".repeat(74);
-function section(title: string): void {
-  console.log("\n" + RULE);
-  console.log(` ${title}`);
-  console.log(RULE);
-}
-
 export async function main(): Promise<void> {
   console.log(RULE);
   console.log(" Time travel — reconstructing the belief behind a past agent decision");
@@ -134,7 +131,6 @@ export async function main(): Promise<void> {
   const cursor = await newStore(checkpointGraph);
   const book = typeGraphCheckpoints(cursor);
   const belief = await newStore(opsGraph, true);
-  const stores = [belief, cursor];
 
   try {
     const source = mockShapeSource(STREAM_NAME, CHANGES);
@@ -144,7 +140,10 @@ export async function main(): Promise<void> {
     // ----------------------------------------------------------
     section("(a) The agent consumes the stream and takes an action");
 
-    const untilAction = await consume({ source, store: belief, checkpoints: book, project, stopAfter: 3 });
+    const untilAction = await consume({ source, store: belief, checkpoints: book, project, stopAfter: CHANGES_BEFORE_ACTING });
+    if (untilAction.lastOffset !== ACTED_AT_OFFSET) {
+      throw new Error(`expected the agent to act at offset ${ACTED_AT_OFFSET}, but the cursor is at ${untilAction.lastOffset}`);
+    }
     const statusWhenActed = await statusOf(belief, HOST_ID);
     const decisionTaken = await decideAction(belief, HOST_ID);
     console.log(`\n  consumed ${untilAction.processed} changes, stopped at offset ${untilAction.lastOffset}`);
@@ -160,8 +159,7 @@ export async function main(): Promise<void> {
     const currentStatus = await statusOf(belief, HOST_ID);
     const decisionNow = await decideAction(belief, HOST_ID);
     console.log(`\n  current belief: ${HOST_ID} is "${currentStatus}"`);
-    console.log(`  current graph queried for the offset-003 belief ("${statusWhenActed}"): not there — it is`);
-    console.log(`  "${currentStatus}" now. The evidence behind the original decision is gone.`);
+    console.log(`  the "${statusWhenActed}" belief the agent acted on at offset ${ACTED_AT_OFFSET} is gone from the current graph`);
     console.log(`  a decision made against belief TODAY would be: ${decisionNow}`);
 
     if (currentStatus === statusWhenActed) {
@@ -207,16 +205,16 @@ export async function main(): Promise<void> {
     // (d) The scrubber: what did belief say at every offset?
     // ----------------------------------------------------------
     section("(d) Per-offset timeline — scrubbing through every anchor");
-    // Under `mockShapeSource` every change carries its own offset, so this is
-    // per-CHANGE time travel. Under a real Electric shape a whole catch-up
-    // batch shares one offset — `durableStreamSource` cannot give finer
-    // granularity than the source's own offsets, so a live deployment scrubs
-    // by batch, not by row. That is a documented limitation, not a bug.
+    // Every change here carries its own offset, so this is per-CHANGE time
+    // travel. Anchors are only as fine as the source's offsets: under
+    // `electricShapeSource` a whole catch-up batch shares one offset (and one
+    // anchor), so a live Electric deployment scrubs by batch, not by row.
     console.log();
     for (const change of CHANGES) {
       const offsetAnchor = await book.anchorFor(STREAM_NAME, change.offset);
-      const status = offsetAnchor === undefined ? "(not checkpointed)" : await statusOf(belief.asOfRecorded(offsetAnchor), HOST_ID);
-      const revision = offsetAnchor === undefined ? "—" : recordedInstantRevision(offsetAnchor);
+      if (offsetAnchor === undefined) throw new Error(`no checkpoint anchor recorded for ${STREAM_NAME}@${change.offset}`);
+      const status = await statusOf(belief.asOfRecorded(offsetAnchor), HOST_ID);
+      const revision = recordedInstantRevision(offsetAnchor);
       const marker = change.offset === ACTED_AT_OFFSET ? "  <-- agent acted here" : "";
       console.log(`    @${change.offset} (rev ${revision}) belief: ${HOST_ID} = "${status}"${marker}`);
     }
@@ -226,7 +224,7 @@ export async function main(): Promise<void> {
     console.log(" recoverable. Recorded-time anchors make that recovery exact.");
     console.log(RULE + "\n");
   } finally {
-    await Promise.allSettled(stores.map((store) => store.close()));
+    await Promise.allSettled([belief.close(), cursor.close()]);
   }
 }
 
